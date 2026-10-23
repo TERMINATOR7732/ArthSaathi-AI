@@ -248,7 +248,7 @@ class GraniteLLMAgent:
         api_key = os.getenv("WATSONX_API_KEY", "").strip()
         project_id = os.getenv("WATSONX_PROJECT_ID", "").strip()
         url = os.getenv("WATSONX_URL", "https://us-south.ml.cloud.ibm.com").strip()
-        model_id = os.getenv("WATSONX_MODEL_ID", "ibm/granite-3-8b-instruct").strip()
+        model_id = os.getenv("WATSONX_MODEL_ID", "ibm/granite-4-h-small").strip()
 
         if not api_key or not project_id:
             return  # not configured; graceful degradation
@@ -281,18 +281,23 @@ class GraniteLLMAgent:
             err = self.init_error or "SDK initialization failed"
             return self._offline_answer(context), f"provider_error:{err}"
 
-        prompt = (
-            f"{self._SYSTEM_PROMPT}\n\n"
-            f"### Knowledge Base Context:\n{context}\n\n"
-            f"### User Question:\n{query}\n\n"
-            f"### ArthSaathi Answer:"
-        )
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    f"{self._SYSTEM_PROMPT}\n\n"
+                    f"### Knowledge Base Context:\n{context}"
+                ),
+            },
+            {"role": "user", "content": query},
+        ]
         try:
-            result = self._client.generate_text(
-                prompt=prompt,
-                params={"max_new_tokens": 512, "temperature": 0.3},
+            result = self._client.chat(
+                messages=messages,
+                params={"max_tokens": 512, "temperature": 0.3},
             )
-            return result.strip(), "granite"
+            answer = result["choices"][0]["message"]["content"].strip()
+            return answer, "granite"
         except Exception as exc:
             return self._offline_answer(context), f"provider_error:{exc}"
 
