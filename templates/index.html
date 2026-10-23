@@ -13,28 +13,62 @@
 <header class="app-header">
   <div class="header-inner">
     <div class="brand">
-      <span class="brand-icon" aria-hidden="true">₹</span>
-      <div>
+      <!-- ₹ mark as a typographic brand symbol, not an emoji icon -->
+      <div class="brand-mark" aria-hidden="true">
+        <span class="brand-mark-glyph">₹</span>
+      </div>
+      <div class="brand-text">
         <span class="brand-name">ArthSaathi AI</span>
-        <span class="brand-tagline">Digital Financial Literacy &amp; UPI Fraud Shield</span>
+        <span class="brand-tagline">Financial Literacy &amp; UPI Fraud Shield</span>
       </div>
     </div>
     <div id="llm-status-badge" class="status-badge status-checking" aria-live="polite">
-      Checking AI status…
+      Checking…
     </div>
   </div>
 </header>
 
 <!-- ===== NAV TABS ===== -->
+<!--
+  Tab icons use inline SVG — simple geometric marks derived from the function
+  of each panel. No emoji, no icon library, no external dependencies.
+  Chat: a speech bubble with a document corner (advisory, not casual chat)
+  Calculator: a simple bar chart mark (financial instrument)
+  Emergency: a downward-pointing triangle (universal caution symbol)
+-->
 <nav class="tab-nav" role="tablist" aria-label="Application sections">
-  <button class="tab-btn active" role="tab" aria-selected="true"  aria-controls="panel-chat"      id="tab-chat"      data-panel="chat">
-    <span class="tab-icon" aria-hidden="true">💬</span> AI Scam Advisor
+  <button class="tab-btn active" role="tab" aria-selected="true"
+          aria-controls="panel-chat" id="tab-chat" data-panel="chat">
+    <span class="tab-icon" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2 2h12v9H9l-3 3V11H2V2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" fill="none"/>
+        <path d="M5 6h6M5 8.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+    </span>
+    AI Scam Advisor
   </button>
-  <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="panel-calculator" id="tab-calculator" data-panel="calculator">
-    <span class="tab-icon" aria-hidden="true">📊</span> Loan Cost Calculator
+  <button class="tab-btn" role="tab" aria-selected="false"
+          aria-controls="panel-calculator" id="tab-calculator" data-panel="calculator">
+    <span class="tab-icon" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1.5" y="10" width="3" height="4.5" rx="0.5" fill="currentColor" opacity="0.5"/>
+        <rect x="6.5" y="6.5" width="3" height="8" rx="0.5" fill="currentColor" opacity="0.7"/>
+        <rect x="11.5" y="2" width="3" height="12.5" rx="0.5" fill="currentColor"/>
+        <path d="M1 13.5h14" stroke="currentColor" stroke-width="1" opacity="0.3"/>
+      </svg>
+    </span>
+    Loan Cost Calculator
   </button>
-  <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="panel-emergency"  id="tab-emergency"  data-panel="emergency">
-    <span class="tab-icon" aria-hidden="true">🚨</span> 1930 Emergency Guide
+  <button class="tab-btn" role="tab" aria-selected="false"
+          aria-controls="panel-emergency" id="tab-emergency" data-panel="emergency">
+    <span class="tab-icon" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 1.5L14.5 13.5H1.5L8 1.5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" fill="none"/>
+        <path d="M8 6v3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="8" cy="11.5" r="0.7" fill="currentColor"/>
+      </svg>
+    </span>
+    1930 Emergency Guide
   </button>
 </nav>
 
@@ -56,7 +90,7 @@
           <div class="message-body">
             <p>Namaste! I am ArthSaathi, your AI financial safety guide.</p>
             <p>Ask me about UPI safety rules, suspicious SMS messages, loan offers, or government financial schemes — in English, Hindi, or Hinglish.</p>
-            <p class="note">⚠️ This tool is for educational purposes only. For immediate fraud assistance, call <strong>1930</strong> (National Cybercrime Helpline, 24×7).</p>
+            <p class="note">This tool is for educational purposes only. For immediate fraud assistance, call <strong>1930</strong> (National Cybercrime Helpline, 24×7).</p>
           </div>
         </div>
       </div>
@@ -92,12 +126,14 @@
   <!-- ── PANEL 2: APR CALCULATOR ── -->
   <section id="panel-calculator" class="panel" role="tabpanel" aria-labelledby="tab-calculator" hidden>
     <div class="calculator-layout">
-      <h2 class="section-heading">Loan Cost Calculator</h2>
-      <p class="section-desc">
-        Calculate the simplified annualized borrowing cost for any short-term loan.
-        This is an <strong>estimate only</strong> — not a legally defined APR.
-        Use it to compare offers and identify predatory rates.
-      </p>
+      <div class="panel-header">
+        <h2 class="section-heading">Loan Cost Calculator</h2>
+        <p class="section-desc">
+          Calculate the simplified annualized borrowing cost for any short-term loan.
+          This is an <strong>estimate only</strong> — not a legally defined APR.
+          Use it to compare offers and identify predatory rates.
+        </p>
+      </div>
 
       <form id="apr-form" class="apr-form" autocomplete="off" novalidate>
         <div class="form-group">
@@ -136,7 +172,7 @@
         <p>The RBI considers rates above 36% a strong indicator of predatory lending for regulated NBFCs.
            Always check whether a lender is RBI-registered at
            <a href="https://sachet.rbi.org.in" target="_blank" rel="noopener noreferrer">sachet.rbi.org.in</a>.</p>
-        <p class="note">⚠️ This formula is a simplified illustrative estimate. Actual loan cost disclosures are governed by RBI Fair Practices Code (DOR.STR.REC.68/21.04.048/2023-24). Always request a written loan agreement before borrowing.</p>
+        <p class="note">This formula is a simplified illustrative estimate. Actual loan cost disclosures are governed by RBI Fair Practices Code (DOR.STR.REC.68/21.04.048/2023-24). Always request a written loan agreement before borrowing.</p>
       </div>
     </div>
   </section>
@@ -144,11 +180,13 @@
   <!-- ── PANEL 3: EMERGENCY ── -->
   <section id="panel-emergency" class="panel" role="tabpanel" aria-labelledby="tab-emergency" hidden>
     <div class="emergency-layout">
-      <h2 class="section-heading emergency-heading">🚨 Immediate Fraud Response</h2>
-      <p class="section-desc">
-        If you have been defrauded or notice unauthorized transactions, follow these steps immediately.
-        Time is critical — fund freezing is most effective within the first hour.
-      </p>
+      <div class="panel-header">
+        <h2 class="section-heading emergency-heading">Immediate Fraud Response</h2>
+        <p class="section-desc">
+          If you have been defrauded or notice unauthorized transactions, follow these steps immediately.
+          Time is critical — fund freezing is most effective within the first hour.
+        </p>
+      </div>
 
       <ol class="protocol-steps">
         <li class="protocol-step step-critical">
