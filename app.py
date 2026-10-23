@@ -117,6 +117,14 @@ def chat() -> tuple[Response, int]:
     else:
         result["status"] = "provider_error"
 
+    # Sanitize provider_error before sending to client: IBM API error bodies may
+    # contain trace UUIDs and other internal identifiers that must not be
+    # forwarded. Replace with a generic message; details are logged server-side.
+    if result.get("provider_error"):
+        logger.warning("Provider error (details suppressed from response): %s",
+                       result["provider_error"])
+        result["provider_error"] = "IBM watsonx.ai request failed. Serving offline response."
+
     return jsonify(result), 200
 
 

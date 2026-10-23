@@ -75,6 +75,12 @@ class OrchestratorResponse:
 # Agent 1 — RAG Retrieval (keyword-based; explicitly NOT semantic/vector search)
 # ---------------------------------------------------------------------------
 
+# Regex that matches standalone KB section-heading lines of the form:
+#   === SECTION N: TITLE ===
+# These lines are purely structural formatting and carry no retrievable content.
+_HEADING_RE = re.compile(r"^={3,}\s*.+={3,}$")
+
+
 class RAGRetrievalAgent:
     """
     Loads local knowledge-base files and retrieves passages by keyword overlap.
@@ -95,10 +101,24 @@ class RAGRetrievalAgent:
             text = path.read_text(encoding="utf-8")
         except FileNotFoundError:
             return
-        # Split on blank lines; keep only passages with meaningful length
-        raw_chunks = [c.strip() for c in text.split("\n\n") if len(c.strip()) > 40]
-        for i, chunk in enumerate(raw_chunks):
-            self.passages.append(Passage(source_file=path.name, index=i, text=chunk))
+        # Split on blank lines; keep only content passages.
+        # Excluded:
+        #   - Empty / whitespace-only blocks.
+        #   - Blocks with 40 chars or fewer (too short to be useful).
+        #   - Standalone section-heading lines (=== SECTION N: TITLE ===).
+        retained_index = 0
+        for chunk in text.split("\n\n"):
+            chunk = chunk.strip()
+            if not chunk:
+                continue
+            if len(chunk) <= 40:
+                continue
+            if _HEADING_RE.match(chunk):
+                continue
+            self.passages.append(
+                Passage(source_file=path.name, index=retained_index, text=chunk)
+            )
+            retained_index += 1
 
     def retrieve(self, query: str, top_k: int = 5) -> list[Passage]:
         """Return up to top_k passages with highest keyword overlap with query."""
@@ -122,6 +142,38 @@ class RAGRetrievalAgent:
 # Agent 2 — Fraud Detection (rule-based keyword patterns)
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# QR receive-money scam detection — contextual pattern matching
+#
+# A scammer claims the victim must *scan* a QR code to *receive* money/refund.
+# In reality, scanning and authorising any QR payment SENDS money to the scammer.
+#
+# Detection logic (all three must match the full query string):
+#   1. Query mentions "qr" or "qr code".
+#   2. Query mentions scanning ("scan" or "scanning").
+#   3. Query mentions a receive-money context word.
+#
+# Negative guard: queries that clearly describe outgoing merchant payments
+#   ("pay for groceries", "pay a merchant", "how QR payments work") are excluded
+#   to prevent false positives on ordinary payment questions.
+# ---------------------------------------------------------------------------
+_QR_KEYWORD_RE = re.compile(r"\bqr\b", re.IGNORECASE)
+_QR_SCAN_RE = re.compile(r"\b(?:scan|scanning)\b", re.IGNORECASE)
+_QR_RECEIVE_CONTEXT_RE = re.compile(
+    r"\b(?:receive|receiving|refund|cashback|get paid|get money|"
+    r"credit|credited|earn|payment received|paid back)\b",
+    re.IGNORECASE,
+)
+
+# Safe-context phrases that indicate the user is paying a merchant — not a scam.
+_QR_SAFE_PAYMENT_RE = re.compile(
+    r"\b(?:pay for|pay a merchant|pay at|pay the merchant|paying for|paying at|"
+    r"how qr payments work|how do qr|explain.*qr payment|pay using qr|"
+    r"scan.*to pay|want to pay)\b",
+    re.IGNORECASE,
+)
+
+
 class FraudDetectionAgent:
     """
     Detects high-risk UPI/loan scam patterns in user queries.
@@ -133,9 +185,9 @@ class FraudDetectionAgent:
         ("upi collect request",
          "⚠️ ALERT: A UPI Collect Request SENDS money out of your account. "
          "Never approve requests from unknown senders."),
-        ("qr code receive",
-         "⚠️ ALERT: QR codes are for PAYMENTS only. "
-         "Scanning a QR code cannot receive money — this is always a scam."),
+        # NOTE: QR receive-money scam is detected via _analyze_qr() (contextual
+        # regex) rather than a plain substring, to avoid false positives on
+        # ordinary merchant-payment questions.
         ("share upi pin",
          "🚨 CRITICAL: NEVER share your UPI PIN with anyone — not bank staff, "
          "not NPCI, not payment app support."),
@@ -165,9 +217,26 @@ class FraudDetectionAgent:
          "This is a known fraud script — do not pay."),
     ]
 
+    _QR_RECEIVE_ALERT = (
+        "⚠️ ALERT: Scanning a QR code NEVER receives money — QR codes are for "
+        "PAYMENTS only. Anyone who claims you must scan a QR code to receive "
+        "money, a refund, or cashback is running a known scam: you will be "
+        "PAYING them, not receiving funds. Do not scan, do not enter your UPI "
+        "PIN. Report this to 1930 immediately."
+    )
+
     def analyze(self, query: str) -> list[str]:
-        q = query.lower()
-        return [msg for trigger, msg in self._RULES if trigger in q]
+        alerts = [msg for trigger, msg in self._RULES if trigger in query.lower()]
+        # QR receive-money scam: require all three signals present anywhere in the
+        # query (order-independent), then exclude safe merchant-payment context.
+        if (
+            _QR_KEYWORD_RE.search(query)
+            and _QR_SCAN_RE.search(query)
+            and _QR_RECEIVE_CONTEXT_RE.search(query)
+            and not _QR_SAFE_PAYMENT_RE.search(query)
+        ):
+            alerts.append(self._QR_RECEIVE_ALERT)
+        return alerts
 
 
 # ---------------------------------------------------------------------------
