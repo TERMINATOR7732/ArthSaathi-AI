@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="ArthSaathi AI — Digital Financial Literacy and UPI Fraud Awareness for Indian citizens." />
+  <title>ArthSaathi AI — Financial Literacy &amp; UPI Fraud Shield</title>
+  <link rel="stylesheet" href="/static/css/styles.css" />
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header class="app-header">
+  <div class="header-inner">
+    <div class="brand">
+      <span class="brand-icon" aria-hidden="true">₹</span>
+      <div>
+        <span class="brand-name">ArthSaathi AI</span>
+        <span class="brand-tagline">Digital Financial Literacy &amp; UPI Fraud Shield</span>
+      </div>
+    </div>
+    <div id="llm-status-badge" class="status-badge status-checking" aria-live="polite">
+      Checking AI status…
+    </div>
+  </div>
+</header>
+
+<!-- ===== NAV TABS ===== -->
+<nav class="tab-nav" role="tablist" aria-label="Application sections">
+  <button class="tab-btn active" role="tab" aria-selected="true"  aria-controls="panel-chat"      id="tab-chat"      data-panel="chat">
+    <span class="tab-icon" aria-hidden="true">💬</span> AI Scam Advisor
+  </button>
+  <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="panel-calculator" id="tab-calculator" data-panel="calculator">
+    <span class="tab-icon" aria-hidden="true">📊</span> Loan Cost Calculator
+  </button>
+  <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="panel-emergency"  id="tab-emergency"  data-panel="emergency">
+    <span class="tab-icon" aria-hidden="true">🚨</span> 1930 Emergency Guide
+  </button>
+</nav>
+
+<!-- ===== MAIN ===== -->
+<main class="app-main">
+
+  <!-- ── PANEL 1: CHAT ── -->
+  <section id="panel-chat" class="panel panel-active" role="tabpanel" aria-labelledby="tab-chat">
+    <div class="chat-layout">
+
+      <!-- Chat history -->
+      <div id="chat-history" class="chat-history" aria-live="polite" aria-label="Chat messages">
+        <!-- Seed message — not presented as model output -->
+        <div class="message message-assistant">
+          <div class="message-meta">
+            <span class="message-role">ArthSaathi</span>
+            <span class="message-source source-system">system</span>
+          </div>
+          <div class="message-body">
+            <p>Namaste! I am ArthSaathi, your AI financial safety guide.</p>
+            <p>Ask me about UPI safety rules, suspicious SMS messages, loan offers, or government financial schemes — in English, Hindi, or Hinglish.</p>
+            <p class="note">⚠️ This tool is for educational purposes only. For immediate fraud assistance, call <strong>1930</strong> (National Cybercrime Helpline, 24×7).</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Offline notice (shown when AI not configured) -->
+      <div id="offline-notice" class="offline-notice" hidden>
+        <strong>Offline mode:</strong> IBM Granite is not configured. Answers are drawn from the local RBI/NPCI knowledge base only.
+        Configure <code>WATSONX_API_KEY</code> and <code>WATSONX_PROJECT_ID</code> in your <code>.env</code> file to enable live AI responses.
+      </div>
+
+      <!-- Input area -->
+      <form id="chat-form" class="chat-form" autocomplete="off" novalidate>
+        <label for="chat-input" class="sr-only">Your question</label>
+        <textarea
+          id="chat-input"
+          name="query"
+          class="chat-input"
+          rows="2"
+          maxlength="1000"
+          placeholder="Ask about UPI safety, suspicious SMS, loan offers, or government schemes…"
+          aria-label="Your question (maximum 1000 characters)"
+          required
+        ></textarea>
+        <button type="submit" id="chat-submit" class="btn btn-primary" aria-label="Send message">
+          <span class="btn-label">Send</span>
+          <span class="btn-spinner" hidden aria-hidden="true"></span>
+        </button>
+      </form>
+      <div id="chat-char-count" class="char-count" aria-live="polite">0 / 1000</div>
+    </div>
+  </section>
+
+  <!-- ── PANEL 2: APR CALCULATOR ── -->
+  <section id="panel-calculator" class="panel" role="tabpanel" aria-labelledby="tab-calculator" hidden>
+    <div class="calculator-layout">
+      <h2 class="section-heading">Loan Cost Calculator</h2>
+      <p class="section-desc">
+        Calculate the simplified annualized borrowing cost for any short-term loan.
+        This is an <strong>estimate only</strong> — not a legally defined APR.
+        Use it to compare offers and identify predatory rates.
+      </p>
+
+      <form id="apr-form" class="apr-form" autocomplete="off" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="apr-principal">Loan amount (₹)</label>
+          <input type="number" id="apr-principal" name="principal" class="form-input"
+                 min="1" max="100000000" step="100" value="10000"
+                 aria-describedby="apr-principal-hint" required />
+          <span id="apr-principal-hint" class="form-hint">The amount you borrow.</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="apr-repayment">Total repayment (₹)</label>
+          <input type="number" id="apr-repayment" name="repayment" class="form-input"
+                 min="1" max="100000000" step="100" value="12500"
+                 aria-describedby="apr-repayment-hint" required />
+          <span id="apr-repayment-hint" class="form-hint">Total amount you pay back (principal + all fees and interest).</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="apr-days">Tenure (days)</label>
+          <input type="number" id="apr-days" name="days" class="form-input"
+                 min="1" max="36500" step="1" value="15"
+                 aria-describedby="apr-days-hint" required />
+          <span id="apr-days-hint" class="form-hint">Number of days until full repayment.</span>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Calculate</button>
+      </form>
+
+      <div id="apr-result" class="apr-result" hidden aria-live="polite">
+        <!-- Populated by JS -->
+      </div>
+
+      <div class="calculator-explainer">
+        <h3>How is this calculated?</h3>
+        <p><code>cost (%) = ((repayment − principal) / principal) × (365 / days) × 100</code></p>
+        <p>Example: ₹10,000 loan, ₹12,500 repayment, 15-day tenure → <strong>608.3% annualized cost</strong>.</p>
+        <p>The RBI considers rates above 36% a strong indicator of predatory lending for regulated NBFCs.
+           Always check whether a lender is RBI-registered at
+           <a href="https://sachet.rbi.org.in" target="_blank" rel="noopener noreferrer">sachet.rbi.org.in</a>.</p>
+        <p class="note">⚠️ This formula is a simplified illustrative estimate. Actual loan cost disclosures are governed by RBI Fair Practices Code (DOR.STR.REC.68/21.04.048/2023-24). Always request a written loan agreement before borrowing.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PANEL 3: EMERGENCY ── -->
+  <section id="panel-emergency" class="panel" role="tabpanel" aria-labelledby="tab-emergency" hidden>
+    <div class="emergency-layout">
+      <h2 class="section-heading emergency-heading">🚨 Immediate Fraud Response</h2>
+      <p class="section-desc">
+        If you have been defrauded or notice unauthorized transactions, follow these steps immediately.
+        Time is critical — fund freezing is most effective within the first hour.
+      </p>
+
+      <ol class="protocol-steps">
+        <li class="protocol-step step-critical">
+          <div class="step-number" aria-hidden="true">1</div>
+          <div class="step-content">
+            <strong>Call 1930 immediately</strong>
+            <p>National Cybercrime Helpline — 24×7, toll-free. Triggers automated fund-freeze across 400+ banks via the CFCFRMS network. Do this first, before anything else.</p>
+          </div>
+        </li>
+        <li class="protocol-step">
+          <div class="step-number" aria-hidden="true">2</div>
+          <div class="step-content">
+            <strong>File a complaint online</strong>
+            <p>Visit <a href="https://cybercrime.gov.in" target="_blank" rel="noopener noreferrer">cybercrime.gov.in</a>. Submit transaction IDs, debit SMS screenshots, and any chat logs as evidence.</p>
+          </div>
+        </li>
+        <li class="protocol-step">
+          <div class="step-number" aria-hidden="true">3</div>
+          <div class="step-content">
+            <strong>Block your card and UPI immediately</strong>
+            <p>Use your bank's app, IVR helpline, or call the number printed on the back of your debit card.</p>
+          </div>
+        </li>
+        <li class="protocol-step">
+          <div class="step-number" aria-hidden="true">4</div>
+          <div class="step-content">
+            <strong>Notify your bank in writing within 3 working days</strong>
+            <p>RBI Circular DBR.No.Leg.BC.78/09.07.005/2017-18 provides consumer protection for unauthorized transactions reported promptly. Contact your bank for the exact procedure — outcomes depend on individual circumstances and bank policy.</p>
+          </div>
+        </li>
+        <li class="protocol-step">
+          <div class="step-number" aria-hidden="true">5</div>
+          <div class="step-content">
+            <strong>Preserve all evidence</strong>
+            <p>Do not delete any SMS, call logs, transaction records, or chat screenshots. These are required for investigation.</p>
+          </div>
+        </li>
+      </ol>
+
+      <div class="emergency-contacts">
+        <h3>Key contacts</h3>
+        <table class="contacts-table">
+          <thead>
+            <tr><th>Contact</th><th>Details</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>National Cybercrime Helpline</td><td><strong>1930</strong> (24×7)</td></tr>
+            <tr><td>Cybercrime Portal</td><td><a href="https://cybercrime.gov.in" target="_blank" rel="noopener noreferrer">cybercrime.gov.in</a></td></tr>
+            <tr><td>RBI Ombudsman Portal</td><td><a href="https://cms.rbi.org.in" target="_blank" rel="noopener noreferrer">cms.rbi.org.in</a></td></tr>
+            <tr><td>RBI Ombudsman Helpline</td><td><strong>14448</strong> (toll-free)</td></tr>
+            <tr><td>NPCI UPI Dispute Resolution</td><td><a href="https://www.npci.org.in/what-we-do/upi/dispute-redressal-mechanism" target="_blank" rel="noopener noreferrer">npci.org.in</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="disclaimer-box">
+        <strong>Disclaimer:</strong> This guidance is for educational and awareness purposes only. It does not constitute legal advice. Laws, policies, and eligibility criteria may change. Always verify information with official RBI, NPCI, and government sources.
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===== FOOTER ===== -->
+<footer class="app-footer">
+  <p>ArthSaathi AI — IBM SkillsBuild AICTE Internship 2026 · Problem Statement No. 7</p>
+  <p>For educational purposes only. Not legal or financial advice.
+     Official sources: <a href="https://rbi.org.in" target="_blank" rel="noopener noreferrer">rbi.org.in</a> ·
+     <a href="https://npci.org.in" target="_blank" rel="noopener noreferrer">npci.org.in</a> ·
+     <a href="https://cybercrime.gov.in" target="_blank" rel="noopener noreferrer">cybercrime.gov.in</a>
+  </p>
+</footer>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+# RBI & NPCI Financial Literacy Knowledge Base
+# ArthSaathi AI — IBM SkillsBuild AICTE 2026 (Problem Statement No. 7)
+# Source: RBI Master Directions, NPCI UPI Guidelines, MeitY Cybercrime Advisories
+
+=== SECTION 1: UPI FRAUD PREVENTION ===
+
+1. UPI PIN is NEVER shared with anyone — not even with your bank, NPCI, or payment app support.
+2. A UPI 'Collect Request' means MONEY LEAVES your account. Always verify before approving.
+3. Scammers impersonate NPCI/banks via fake "KYC Update" SMS or WhatsApp messages.
+4. Screen sharing apps (AnyDesk, TeamViewer) are common fraud tools — never install them for banking.
+5. QR Codes are for PAYMENTS only. Scanning a QR to "receive" money is always a scam.
+6. Your UPI ID does not need "activation" — activation fee requests are scams.
+7. OTPs are one-time; once you share one, your account can be immediately compromised.
+8. Report UPI fraud within 3 days to trigger RBI Zero-Liability Rule (Circular DBR.No.Leg.BC.78/09.07.005/2017-18).
+9. Always use official apps: PhonePe, Google Pay, Paytm, BHIM — never third-party clones.
+10. Verify beneficiary name shown on screen before confirming any UPI transaction.
+
+=== SECTION 2: PREDATORY LOAN APP IDENTIFICATION ===
+
+1. Legal NBFC/bank loan apps must be registered with RBI. Check: https://www.rbi.org.in/commonman/English/scripts/NBFCs.aspx
+2. APR (Annual Percentage Rate) above 36% is a strong indicator of predatory lending.
+3. PM Mudra Yojana offers loans at 8.5%–14% APR — benchmark for fair lending.
+4. Predatory apps demand full repayment in 7–14 days (not EMIs), maximizing effective APR to 200–500%.
+5. Illegal apps access your contacts, gallery, and location to harass defaulters.
+6. Processing fees disguised as "insurance" or "security deposit" are red flags.
+7. Legitimate lenders never disburse loans without proper KYC and credit assessment.
+8. RBI Circular DOR.FIN.HC.No.37/20.06.018/2022-23 bans unauthorized digital lending apps.
+9. Always demand a signed loan agreement with total cost of credit disclosed before disbursement.
+10. If contacted by an illegal app, report to Cybercrime Portal: https://cybercrime.gov.in
+
+=== SECTION 3: EMERGENCY CYBERCRIME RESPONSE ===
+
+1. National Cybercrime Helpline: 1930 (24×7 active)
+2. Cybercrime Reporting Portal: https://cybercrime.gov.in
+3. RBI Zero-Liability Rule: Report within 3 working days for full protection (Circular DBR.No.Leg.BC.78).
+4. After 3 days but within 7 days: up to 25,000 liability may apply depending on the bank.
+5. "Golden Hour" Rule: Block card/freeze UPI immediately via bank app or 1930 hotline.
+6. NPCI Dispute Resolution: Raise a dispute via your UPI app within 24 hours for faster resolution.
+7. Gather evidence: screenshots, transaction IDs, chat logs before reporting.
+8. File an FIR at nearest Cyber Cell or local police station after reporting on 1930.
+9. Inform your bank's fraud desk directly via the official number on the back of your debit card.
+10. Do not delete any messages or transaction history — these are evidence.
+
+=== SECTION 4: PM JAN DHAN YOJANA & GOVERNMENT SCHEMES ===
+
+1. PMJDY accounts have zero minimum balance and come with a free RuPay debit card.
+2. PMJDY overdraft facility: up to ₹10,000 available after 6 months of active usage.
+3. PM Kisan Samman Nidhi: ₹6,000/year directly to farmers' accounts in 3 instalments.
+4. PMSBY (Pradhan Mantri Suraksha Bima Yojana): ₹2 lakh accidental cover at just ₹20/year.
+5. PMJJBY (Pradhan Mantri Jeevan Jyoti Bima Yojana): ₹2 lakh life cover at ₹436/year.
+6. Atal Pension Yojana: Guaranteed pension of ₹1,000–₹5,000/month after age 60.
+7. Sukanya Samriddhi Yojana: 8.2% interest (Q1 FY2025) for girl child savings.
+8. NSC (National Savings Certificate): 7.7% guaranteed return, 5-year lock-in.
+9. PMMY (Pradhan Mantri Mudra Yojana): Loans up to ₹10 lakh for micro enterprises.
+   - Shishu: up to ₹50,000 | Kishore: ₹50,001–₹5 lakh | Tarun: ₹5 lakh–₹10 lakh
+
+=== SECTION 5: DIGITAL PAYMENT SAFETY BEST PRACTICES ===
+
+1. Enable two-factor authentication (UPI PIN + biometric) on all payment apps.
+2. Set UPI transaction limits to your typical usage to contain losses from fraud.
+3. Use VPA (Virtual Payment Address) instead of sharing bank account numbers.
+4. Regularly check linked accounts in your UPI app and remove unused ones.
+5. Never save UPI PIN in notes apps, cloud storage, or share via chat.
+6. Install payment apps only from official Play Store / App Store.
+7. Update payment apps regularly to get latest security patches.
+8. Be suspicious of "cashback" or "lottery" requests that ask you to enter your PIN first.
+9. RBI mandates all banks to provide a 24×7 helpline for blocking compromised accounts.
+10. Use BHIM app (by NPCI) as the baseline secure UPI application — government-backed.

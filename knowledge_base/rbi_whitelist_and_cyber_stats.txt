@@ -1,0 +1,77 @@
+# RBI Whitelist & Cyber Fraud Statistics
+# ArthSaathi AI — IBM SkillsBuild AICTE 2026 (Problem Statement No. 7)
+# Source: RBI Annual Report 2023-24, NPCI Data, MHA Cybercrime Reports
+
+=== RBI-REGISTERED WHITELIST: LEGITIMATE DIGITAL LENDING NBFCs ===
+
+APPROVED APPS / PLATFORMS (RBI Registered):
+- Bajaj Finserv (Bajaj Finance Ltd) — RBI Reg: N-13.00803
+- Tata Capital Financial Services — RBI Reg: N-14.00248
+- Muthoot Finance — RBI Reg: N-16.00167
+- Manappuram Finance — RBI Reg: N-16.00218
+- HDFC Bank Personal Loan App — Scheduled Commercial Bank
+- ICICI Bank iLens — Scheduled Commercial Bank
+- SBI YONO — Scheduled Commercial Bank
+- Axis Bank — Scheduled Commercial Bank
+- KreditBee (Finnovation Tech Solutions) — RBI Reg Partner NBFC
+- MoneyTap (Bhanix Finance) — RBI Reg NBFC: B-07.00312
+- EarlySalary (Social Worth Technologies) — RBI Reg NBFC
+- Navi (Navi Finserv Ltd) — RBI Reg NBFC: B-13.01854
+
+NOTE: Always verify current status at https://www.rbi.org.in/commonman/English/scripts/NBFCs.aspx
+
+=== RED FLAG INDICATORS: ILLEGAL LOAN APPS ===
+
+WARNING SIGNS (Do NOT use these types of apps):
+- No RBI registration number visible in app/website
+- Requires full repayment in 7–14 days
+- APR exceeds 36% (often 200%–500%)
+- Demands access to contacts and photo gallery
+- No physical address or grievance officer listed
+- Disburses loan without video KYC or credit check
+- Threatens harassment calls if payment delayed
+- Uses WhatsApp/Telegram for "customer support" only
+
+=== CYBERCRIME STATISTICS INDIA 2023-24 ===
+
+Financial Cybercrime Scale:
+- Total cyber fraud complaints (2023): 11.28 lakh (MHA NCRB)
+- Total financial loss reported: ₹7,488.63 crore (CY 2023)
+- UPI fraud incidents: 95,000+ cases (NPCI data, FY2023-24)
+- Digital lending app complaints: 2,562 FIRs registered (RBI data FY2023)
+
+Top Fraud Vectors:
+1. Fake investment/trading apps: 47.25% of losses
+2. Illegal loan apps (recovery harassment): 17.3%
+3. OTP/SIM swap fraud: 12.8%
+4. Fake KYC update scams: 9.4%
+5. QR code "receive money" scams: 6.1%
+6. Screen-sharing (remote access) scams: 4.2%
+7. Other: 2.95%
+
+State-wise High Fraud Zones (2023):
+- Maharashtra: Highest UPI fraud cases
+- Rajasthan (Mewat): Highest cyber crime per capita
+- Karnataka (Bengaluru): Highest tech-enabled fraud
+- Haryana: High SIM swap fraud
+
+Recovery Statistics:
+- Amount frozen within golden hour: ₹1,127 crore (FY2023-24)
+- Amount recovered/refunded: ₹153 crore (FY2023-24)
+- Cases resolved via 1930 helpline: 7.6 lakh (FY2023-24)
+
+=== EMERGENCY CONTACTS ===
+
+National Cybercrime Helpline: 1930 (24×7)
+Cybercrime Portal: https://cybercrime.gov.in
+RBI Ombudsman: https://cms.rbi.org.in (or call 14448)
+NPCI UPI Dispute: https://www.npci.org.in/what-we-do/upi/dispute-redressal-mechanism
+Ministry of Finance Helpline: 1800-180-1111
+
+=== RBI KEY CIRCULARS REFERENCE ===
+
+1. DBR.No.Leg.BC.78/09.07.005/2017-18 — Zero Liability for unauthorized transactions
+2. DOR.FIN.HC.No.37/20.06.018/2022-23 — Digital Lending Guidelines
+3. RBI/2021-22/167 DPSS.CO.OD.No.1431/06.07.011/2021-22 — UPI interoperability
+4. RPCD.PLNFS.BC.No.62/06.12.05/2006-07 — Priority Sector Lending (Mudra basis)
+5. DOR.STR.REC.68/21.04.048/2023-24 — Fair Practices Code for NBFC Lenders
