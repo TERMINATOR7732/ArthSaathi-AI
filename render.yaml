@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: arthsaathi-ai
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    healthCheckPath: /api/health
+    envVars:
+      - key: FLASK_DEBUG
+        value: "false"
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+      - key: WATSONX_URL
+        value: "https://us-south.ml.cloud.ibm.com"
+      - key: WATSONX_MODEL_ID
+        value: "ibm/granite-4-h-small"
+      - key: WATSONX_API_KEY
+        sync: false
+      - key: WATSONX_PROJECT_ID
+        sync: false

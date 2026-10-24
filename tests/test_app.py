@@ -793,3 +793,197 @@ def test_kb_passage_indices_are_sequential_per_file():
         assert indices == list(range(len(indices))), (
             f"Indices for {fname} must be 0, 1, 2, … Got: {indices}"
         )
+
+
+# ===========================================================================
+# 12. Environment loading — .env path resolved from app.py location, not CWD
+# ===========================================================================
+
+def test_dotenv_path_is_relative_to_app_file():
+    """
+    app.py must resolve the .env path relative to its own directory, not the
+    process working directory. This is verified by inspecting the _DOTENV_PATH
+    variable that app.py sets before calling load_dotenv().
+
+    We confirm:
+      1. _DOTENV_PATH is a Path object.
+      2. Its parent equals the directory that contains app.py (resolved).
+      3. Its filename is '.env'.
+
+    We do NOT read or check the actual contents of .env.
+    """
+    import app as flask_app_module
+    from pathlib import Path as _Path
+
+    dotenv_path = getattr(flask_app_module, "_DOTENV_PATH", None)
+    assert dotenv_path is not None, (
+        "app._DOTENV_PATH must be set before load_dotenv() is called. "
+        "It is used to make .env discovery independent of the working directory."
+    )
+    assert isinstance(dotenv_path, _Path), (
+        f"_DOTENV_PATH must be a pathlib.Path, got {type(dotenv_path)}"
+    )
+
+    # The parent of _DOTENV_PATH must equal the resolved directory of app.py
+    app_dir = _Path(flask_app_module.__file__).resolve().parent
+    assert dotenv_path.parent.resolve() == app_dir, (
+        f"_DOTENV_PATH parent ({dotenv_path.parent}) must equal the directory "
+        f"containing app.py ({app_dir})."
+    )
+    assert dotenv_path.name == ".env", (
+        f"_DOTENV_PATH filename must be '.env', got '{dotenv_path.name}'"
+    )
+
+
+def test_offline_mode_starts_cleanly_without_credentials():
+    """
+    When WATSONX_API_KEY and WATSONX_PROJECT_ID are absent, the application
+    must start without raising an exception and the orchestrator must report
+    llm_configured=False and llm_ready=False. This verifies that patching
+    env vars to empty strings reliably exercises the offline-mode path,
+    independent of whatever real credentials may be in .env.
+    """
+    with mock.patch.dict(os.environ, {"WATSONX_API_KEY": "", "WATSONX_PROJECT_ID": ""}):
+        agent = GraniteLLMAgent()
+        assert not agent.configured, "configured must be False without credentials"
+        assert not agent._ready,     "_ready must be False without credentials"
+        assert agent.init_error is None, (
+            "init_error should be None when credentials were absent (not an SDK error)"
+        )
+
+
+def test_health_endpoint_reports_configured_state_accurately(client):
+    """
+    The /api/health endpoint must return llm_configured and llm_ready that
+    accurately reflect the actual orchestrator state — not a hardcoded value.
+    When running without real credentials, both must be False.
+    When running with real credentials, llm_configured must be True.
+
+    This test does not require real credentials; it only verifies the field
+    contract (both fields are booleans and their values are consistent).
+    """
+    resp = client.get("/api/health")
+    assert resp.status_code == 200
+    data = resp.get_json()
+
+    assert isinstance(data["llm_configured"], bool), (
+        "llm_configured must be a boolean"
+    )
+    assert isinstance(data["llm_ready"], bool), (
+        "llm_ready must be a boolean"
+    )
+    # llm_ready can only be True if llm_configured is also True
+    if data["llm_ready"]:
+        assert data["llm_configured"], (
+            "llm_ready=True requires llm_configured=True"
+        )
+    # llm_configured=False must mean llm_ready=False
+    if not data["llm_configured"]:
+        assert not data["llm_ready"], (
+            "llm_configured=False must imply llm_ready=False"
+        )
+
+def test_dotenv_loads_from_file_dir_not_cwd():
+    """
+    Functional test: proves that resolving the .env path relative to a known
+    file location — the same pattern used in app.py — loads variables
+    correctly even when the process CWD is a completely different directory.
+
+    Coverage gap in test_dotenv_path_is_relative_to_app_file
+    ──────────────────────────────────────────────────────────
+    That test inspects the computed Path value only. It would pass even if
+    load_dotenv silently ignored the explicit path. This test exercises the
+    actual runtime behaviour.
+
+    Approach
+    ─────────
+    1. Create a temporary "app directory" and write a dummy .env there.
+    2. Change CWD to a separate temporary "other directory".
+    3. Call load_dotenv(dotenv_path=...) with the path resolved from the
+       "app directory" — the same idiom as app.py line 27-28.
+    4. Assert the dummy variable was loaded.
+    5. Restore CWD and clean the dummy variable from os.environ, even on
+       failure, via try/finally.
+
+    No real credentials, no IBM API calls, no production .env is read.
+    """
+    import tempfile
+    import pathlib
+    from dotenv import load_dotenv as _load_dotenv
+
+    DUMMY_KEY = "ARTHSAATHI_TEST_CWD_CHECK_DUMMY"
+    DUMMY_VAL = "cwd_independent_load_ok"
+
+    original_cwd = os.getcwd()
+    tmpdir_app   = tempfile.mkdtemp(prefix="arthsaathi_app_")
+    tmpdir_other = tempfile.mkdtemp(prefix="arthsaathi_cwd_")
+
+    try:
+        # Write a dummy .env into the "app directory"
+        dummy_env = pathlib.Path(tmpdir_app) / ".env"
+        dummy_env.write_text(f"{DUMMY_KEY}={DUMMY_VAL}\n", encoding="utf-8")
+
+        # Move CWD somewhere completely different
+        os.chdir(tmpdir_other)
+
+        # Reproduce the exact pattern from app.py:
+        #   _DOTENV_PATH = Path(__file__).resolve().parent / ".env"
+        #   load_dotenv(dotenv_path=_DOTENV_PATH)
+        # Here __file__ is simulated by dummy_env itself.
+        resolved_path = pathlib.Path(tmpdir_app).resolve() / ".env"
+        _load_dotenv(dotenv_path=resolved_path, override=True)
+
+        loaded = os.environ.get(DUMMY_KEY, "NOT_FOUND")
+        assert loaded == DUMMY_VAL, (
+            f"Expected {DUMMY_KEY}={DUMMY_VAL!r} after load_dotenv with explicit "
+            f"path {resolved_path}, but got {loaded!r}. "
+            f"CWD was {os.getcwd()!r} (not the app dir). "
+            "This indicates load_dotenv did not respect the dotenv_path argument."
+        )
+    finally:
+        # Restore CWD and clean up dummy env var regardless of test outcome
+        os.chdir(original_cwd)
+        os.environ.pop(DUMMY_KEY, None)
+        import shutil
+        shutil.rmtree(tmpdir_app,   ignore_errors=True)
+        shutil.rmtree(tmpdir_other, ignore_errors=True)
+
+
+# ===========================================================================
+# 13. Production deployment configuration (Render & WSGI)
+# ===========================================================================
+
+def test_production_wsgi_app_callable():
+    """
+    gunicorn invokes 'app:app'. app.py must expose an 'app' symbol that is an
+    instance of flask.Flask so that gunicorn can bind and serve the WSGI app.
+    """
+    import app as flask_app_module
+    from flask import Flask
+    assert hasattr(flask_app_module, "app"), "app.py must expose 'app' WSGI callable"
+    assert isinstance(flask_app_module.app, Flask), "'app' must be a Flask instance"
+
+
+def test_gunicorn_dependency_in_requirements():
+    """
+    requirements.txt must include gunicorn for production WSGI serving on Linux.
+    """
+    req_file = Path(__file__).parent.parent / "requirements.txt"
+    assert req_file.exists(), "requirements.txt must exist"
+    req_text = req_file.read_text(encoding="utf-8")
+    assert "gunicorn" in req_text.lower(), "gunicorn must be present in requirements.txt"
+
+
+def test_render_blueprint_configuration():
+    """
+    render.yaml must exist, enforce ₹0 cost (plan: free), use gunicorn startup,
+    and configure the /api/health health-check endpoint.
+    """
+    render_file = Path(__file__).parent.parent / "render.yaml"
+    assert render_file.exists(), "render.yaml must exist"
+    content = render_file.read_text(encoding="utf-8")
+    assert "plan: free" in content, "render.yaml must enforce free plan"
+    assert "gunicorn app:app" in content, "render.yaml must specify gunicorn startCommand"
+    assert "/api/health" in content, "render.yaml must configure healthCheckPath"
+
+

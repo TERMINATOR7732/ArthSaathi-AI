@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import logging
+from pathlib import Path
 from flask import Flask, jsonify, render_template, request, Response
 
 from arthsaathi_agent import ArthSaathiOrchestrator, calculate_annualized_cost
@@ -21,7 +22,10 @@ from dotenv import load_dotenv
 # Bootstrap
 # ---------------------------------------------------------------------------
 
-load_dotenv()
+# Resolve .env relative to this file's directory so the application starts
+# correctly regardless of the shell's current working directory.
+_DOTENV_PATH = Path(__file__).resolve().parent / ".env"
+load_dotenv(dotenv_path=_DOTENV_PATH)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("arthsaathi")
@@ -211,4 +215,5 @@ def internal_error(exc) -> tuple[Response, int]:
 
 if __name__ == "__main__":
     debug = os.getenv("FLASK_DEBUG", "false").lower() == "true"
-    app.run(host="0.0.0.0", port=5000, debug=debug)
+    port = int(os.getenv("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=debug)
