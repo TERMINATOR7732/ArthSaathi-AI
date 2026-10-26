@@ -157,7 +157,7 @@ function sourceLabel(source) {
 
 let isChatSubmitting = false;
 
-function appendMessage({ role, body, source, fraudAlerts, passages, loading, latencyMs }) {
+function appendMessage({ role, body, source, fraudAlerts, passages, loading, latencyMs, retryQuery }) {
   const history = document.getElementById("chat-history");
   if (!history) return null;
 
@@ -223,6 +223,35 @@ function appendMessage({ role, body, source, fraudAlerts, passages, loading, lat
     content.innerHTML = renderMarkdown(body);
   }
   bodyEl.appendChild(content);
+
+  // Inline retry button if provided
+  if (retryQuery) {
+    const retryWrap = document.createElement("div");
+    retryWrap.className = "message-retry-wrap";
+
+    const retryBtn = document.createElement("button");
+    retryBtn.type = "button";
+    retryBtn.className = "btn-retry";
+    retryBtn.innerHTML = `
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M14 8A6 6 0 1 1 8 2c2.5 0 4.7 1.5 5.6 3.7M14 2v4h-4"/>
+      </svg>
+      <span>Retry Question</span>
+    `;
+    retryBtn.addEventListener("click", () => {
+      if (isChatSubmitting) return;
+      const input = document.getElementById("chat-input");
+      const count = document.getElementById("chat-char-count");
+      const form  = document.getElementById("chat-form");
+      if (input && form) {
+        input.value = retryQuery;
+        if (count) count.textContent = `${retryQuery.length} / ${MAX_QUERY}`;
+        form.requestSubmit();
+      }
+    });
+    retryWrap.appendChild(retryBtn);
+    bodyEl.appendChild(retryWrap);
+  }
 
   // Knowledge base passages (collapsed by default)
   if (passages && passages.length > 0) {
@@ -363,8 +392,23 @@ function initChat() {
     });
     setSubmitting(true);
 
+    const thinkingTextEl = loadingMsg ? loadingMsg.querySelector(".thinking-text") : null;
+
+    // Progressive status updates so the user is kept informed during cold starts
+    const timer1 = setTimeout(() => {
+      if (thinkingTextEl) thinkingTextEl.textContent = "Consulting IBM Granite AI model…";
+    }, 7000);
+
+    const timer2 = setTimeout(() => {
+      if (thinkingTextEl) thinkingTextEl.textContent = "Connecting to service (free-tier instance waking up, please wait)…";
+    }, 20000);
+
+    const timer3 = setTimeout(() => {
+      if (thinkingTextEl) thinkingTextEl.textContent = "Still waiting for response (instances take up to 60s to wake up)…";
+    }, 45000);
+
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25000);
+    const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 seconds bounded timeout
 
     try {
       const res = await fetch(API.CHAT, {
@@ -386,9 +430,10 @@ function initChat() {
           // Response body was not JSON
         }
         appendMessage({
-          role:   "assistant",
-          body:   `Error: ${errDetail}. Please try again.`,
-          source: "provider_error",
+          role:       "assistant",
+          body:       `Error: ${errDetail}. Please try again.`,
+          source:     "provider_error",
+          retryQuery: query,
         });
         return;
       }
@@ -397,9 +442,10 @@ function initChat() {
 
       if (data.status === "error") {
         appendMessage({
-          role:   "assistant",
-          body:   `Error: ${data.message || "Unknown error."}`,
-          source: "provider_error",
+          role:       "assistant",
+          body:       `Error: ${data.message || "Unknown error."}`,
+          source:     "provider_error",
+          retryQuery: query,
         });
       } else {
         // Update offline notice if not configured
@@ -419,15 +465,19 @@ function initChat() {
       if (loadingMsg) loadingMsg.remove();
       let errorMsg = "Could not reach the server. Please check your internet connection and try again.";
       if (err.name === "AbortError") {
-        errorMsg = "The request timed out while contacting the assistant. Please try asking again.";
+        errorMsg = "The request timed out while contacting the assistant. If the service was sleeping, it may now be awake and ready.";
       }
       appendMessage({
-        role:   "assistant",
-        body:   errorMsg,
-        source: "provider_error",
+        role:       "assistant",
+        body:       errorMsg,
+        source:     "provider_error",
+        retryQuery: query,
       });
     } finally {
       clearTimeout(timeoutId);
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
       setSubmitting(false);
       input.focus();
     }

@@ -14,6 +14,7 @@ Credentials are read from environment variables only — never hardcoded here.
 
 from __future__ import annotations
 
+import concurrent.futures
 import os
 import re
 import time
@@ -514,12 +515,20 @@ class GraniteLLMAgent:
             {"role": "user", "content": query},
         ]
         try:
-            result = self._client.chat(
-                messages=messages,
-                params={"max_tokens": 512, "temperature": 0.3},
-            )
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(
+                    self._client.chat,
+                    messages=messages,
+                    params={"max_tokens": 512, "temperature": 0.3},
+                )
+                result = future.result(timeout=50.0)
             answer = result["choices"][0]["message"]["content"].strip()
             return answer, "granite"
+        except concurrent.futures.TimeoutError:
+            return (
+                self._offline_answer(context, query=query),
+                "provider_error:IBM watsonx.ai request timed out after 50 seconds",
+            )
         except Exception as exc:
             return self._offline_answer(context, query=query), f"provider_error:{exc}"
 

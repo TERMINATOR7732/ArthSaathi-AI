@@ -979,15 +979,42 @@ def test_gunicorn_dependency_in_requirements():
 
 def test_render_blueprint_configuration():
     """
-    render.yaml must exist, enforce ₹0 cost (plan: free), use gunicorn startup,
-    and configure the /api/health health-check endpoint.
+    render.yaml must exist, enforce ₹0 cost (plan: free), use gunicorn startup
+    with an extended 120s timeout for Render free-tier cold starts, and configure
+    the /api/health health-check endpoint.
     """
     render_file = Path(__file__).parent.parent / "render.yaml"
     assert render_file.exists(), "render.yaml must exist"
     content = render_file.read_text(encoding="utf-8")
     assert "plan: free" in content, "render.yaml must enforce free plan"
-    assert "gunicorn app:app" in content, "render.yaml must specify gunicorn startCommand"
+    assert "gunicorn" in content and "app:app" in content, "render.yaml must specify gunicorn startCommand"
+    assert "--timeout 120" in content, "render.yaml must configure gunicorn --timeout 120"
     assert "/api/health" in content, "render.yaml must configure healthCheckPath"
+
+
+def test_granite_agent_timeout_returns_offline_fallback():
+    """
+    If IBM watsonx chat invocation takes longer than the internal timeout,
+    GraniteLLMAgent must catch TimeoutError and return a graceful offline answer
+    with a provider_error source rather than hanging or crashing.
+    """
+    import concurrent.futures
+    agent = GraniteLLMAgent()
+    mock_client = mock.MagicMock()
+
+    def _slow_chat(*args, **kwargs):
+        raise concurrent.futures.TimeoutError("watsonx model inference stalled")
+
+    mock_client.chat.side_effect = _slow_chat
+
+    with mock.patch.object(agent, "configured", True), \
+         mock.patch.object(agent, "_ready", True), \
+         mock.patch.object(agent, "_client", mock_client):
+
+        answer, source = agent.generate("What is UPI?", "Context passage on UPI")
+        assert "provider_error:" in source
+        assert "timed out after 50 seconds" in source
+        assert "[Offline Knowledge Base" in answer
 
 
 # ===========================================================================
@@ -1158,9 +1185,10 @@ def test_frontend_loading_lifecycle_patterns_in_app_js():
     """
     static/js/app.js must implement:
     1. isChatSubmitting duplicate-request guard
-    2. AbortController request timeout
+    2. AbortController request timeout aligned to 90s for free-tier waking
     3. Proper setSubmitting clearing in a finally block
-    4. thinking-indicator markup
+    4. thinking-indicator markup with progressive status updates
+    5. Inline retry button support on error or abort
     """
     js_path = Path(__file__).parent.parent / "static" / "js" / "app.js"
     assert js_path.exists(), "static/js/app.js must exist"
@@ -1168,7 +1196,9 @@ def test_frontend_loading_lifecycle_patterns_in_app_js():
 
     assert "isChatSubmitting" in js, "isChatSubmitting flag must be present"
     assert "AbortController" in js, "AbortController timeout handling must be present"
+    assert "90000" in js, "AbortController timeout must be set to 90 seconds (90000ms)"
     assert "thinking-indicator" in js, "thinking-indicator must be rendered during loading"
+    assert "btn-retry" in js, "Inline retry button must be supported"
     assert "finally" in js, "finally block must be present"
 
 

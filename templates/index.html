@@ -77,80 +77,190 @@
 
   <!-- ── PANEL 1: CHAT ── -->
   <section id="panel-chat" class="panel panel-active" role="tabpanel" aria-labelledby="tab-chat">
-    <div class="chat-layout">
+    <div class="chat-workspace">
 
-      <!-- Chat history -->
-      <div id="chat-history" class="chat-history" aria-live="polite" aria-label="Chat messages">
-        <!-- Seed message — not presented as model output -->
-        <div class="message message-assistant">
-          <div class="message-meta">
-            <span class="message-role">ArthSaathi</span>
-            <span class="message-source source-system">system</span>
+      <!-- Main Column: Chat Thread & Composer -->
+      <div class="chat-main-column">
+        <!-- Editorial Hero Introduction -->
+        <header class="chat-workspace-header">
+          <div class="header-badge-row">
+            <span class="editorial-badge">RBI &amp; NPCI Aligned</span>
+            <span class="editorial-status"><span class="status-pulse-dot" aria-hidden="true">●</span> 24×7 AI Advisory</span>
           </div>
-          <div class="message-body">
-            <p>Namaste! I am ArthSaathi, your AI financial safety guide.</p>
-            <p>Ask me about UPI safety rules, suspicious SMS messages, loan offers, or government financial schemes — in English, Hindi, or Hinglish.</p>
-            <p class="note">This tool is for educational purposes only. For immediate fraud assistance, call <strong>1930</strong> (National Cybercrime Helpline, 24×7).</p>
+          <h1 class="workspace-main-title">Digital Financial Literacy &amp; Fraud Shield</h1>
+          <p class="workspace-lead">
+            Evaluate suspicious UPI payment requests, verify high-interest loan apps, decode confusing banking SMS, and take decisive steps under official consumer protection rules.
+          </p>
+        </header>
+
+        <!-- Chat history -->
+        <div id="chat-history" class="chat-history" aria-live="polite" aria-label="Chat messages">
+          <!-- Seed message — not presented as model output -->
+          <div class="message message-assistant">
+            <div class="message-meta">
+              <span class="message-role">ArthSaathi</span>
+              <span class="message-source source-system">system</span>
+            </div>
+            <div class="message-body">
+              <p>Namaste! I am ArthSaathi, your AI financial safety guide.</p>
+              <p>Ask me about UPI safety rules, suspicious SMS messages, loan offers, or government financial schemes — in English, Hindi, or Hinglish.</p>
+              <p class="note">This tool is for educational purposes only. For immediate fraud assistance, call <strong>1930</strong> (National Cybercrime Helpline, 24×7).</p>
+            </div>
+          </div>
+
+          <!-- Example prompts for new conversation -->
+          <div id="example-prompts" class="example-prompts" aria-label="Suggested starter questions">
+            <div class="prompts-intro">
+              <span class="prompts-badge">Common Scenarios</span>
+              <p class="example-prompts-title">Suggested questions to get started:</p>
+            </div>
+            <div class="prompt-grid">
+              <button type="button" class="prompt-btn" data-query="How can I identify a UPI payment scam?">
+                <div class="prompt-card-top">
+                  <span class="prompt-tag">UPI Safety</span>
+                  <span class="prompt-arrow" aria-hidden="true">→</span>
+                </div>
+                <span class="prompt-text">How can I identify a UPI payment scam?</span>
+                <span class="prompt-subtext">Recognize fake collect requests, phishing SMS, and caller impersonation</span>
+              </button>
+              <button type="button" class="prompt-btn" data-query="Is this loan offer suspicious?">
+                <div class="prompt-card-top">
+                  <span class="prompt-tag">Loan Scams</span>
+                  <span class="prompt-arrow" aria-hidden="true">→</span>
+                </div>
+                <span class="prompt-text">Is this loan offer suspicious?</span>
+                <span class="prompt-subtext">Spot predatory terms, illegal access permissions, and fake NBFCs</span>
+              </button>
+              <button type="button" class="prompt-btn" data-query="How do I report a financial cybercrime?">
+                <div class="prompt-card-top">
+                  <span class="prompt-tag">Reporting</span>
+                  <span class="prompt-arrow" aria-hidden="true">→</span>
+                </div>
+                <span class="prompt-text">How do I report a financial cybercrime?</span>
+                <span class="prompt-subtext">Step-by-step CFCFRMS protocol, 1930 helpline, and online FIR filing</span>
+              </button>
+              <button type="button" class="prompt-btn" data-query="Can someone send me money by asking me to scan a QR code?">
+                <div class="prompt-card-top">
+                  <span class="prompt-tag">QR Fraud</span>
+                  <span class="prompt-arrow" aria-hidden="true">→</span>
+                </div>
+                <span class="prompt-text">Can someone send me money by asking me to scan a QR code?</span>
+                <span class="prompt-subtext">The #1 OLX/marketplace scam explained: scanning QR codes only debits</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        <!-- Example prompts for new conversation -->
-        <div id="example-prompts" class="example-prompts" aria-label="Suggested starter questions">
-          <p class="example-prompts-title">Suggested questions to get started:</p>
-          <div class="prompt-grid">
-            <button type="button" class="prompt-btn" data-query="How can I identify a UPI payment scam?">
-              <span class="prompt-icon" aria-hidden="true">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>
-              </span>
-              <span class="prompt-text">How can I identify a UPI payment scam?</span>
+        <!-- Offline notice (shown when AI not configured) -->
+        <div id="offline-notice" class="offline-notice" hidden>
+          <strong>Offline mode:</strong> IBM Granite is not configured. Answers are drawn from the local RBI/NPCI knowledge base only.
+          Configure <code>WATSONX_API_KEY</code> and <code>WATSONX_PROJECT_ID</code> in your <code>.env</code> file to enable live AI responses.
+        </div>
+
+        <!-- Sticky / Docked Composer Area -->
+        <div class="chat-composer-wrap">
+          <form id="chat-form" class="chat-form" autocomplete="off" novalidate>
+            <label for="chat-input" class="sr-only">Your question</label>
+            <textarea
+              id="chat-input"
+              name="query"
+              class="chat-input"
+              rows="2"
+              maxlength="1000"
+              placeholder="Ask about UPI safety, suspicious SMS, loan offers, or government schemes…"
+              aria-label="Your question (maximum 1000 characters)"
+              required
+            ></textarea>
+            <button type="submit" id="chat-submit" class="btn btn-primary" aria-label="Send message">
+              <span class="btn-label">Send</span>
+              <span class="btn-spinner hidden" hidden aria-hidden="true"></span>
             </button>
-            <button type="button" class="prompt-btn" data-query="Is this loan offer suspicious?">
-              <span class="prompt-icon" aria-hidden="true">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 13h12M4 10l4-6 4 6"/></svg>
-              </span>
-              <span class="prompt-text">Is this loan offer suspicious?</span>
-            </button>
-            <button type="button" class="prompt-btn" data-query="How do I report a financial cybercrime?">
-              <span class="prompt-icon" aria-hidden="true">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 1.5L14.5 13.5H1.5L8 1.5z"/><path d="M8 6v3.5M8 11.5v.5"/></svg>
-              </span>
-              <span class="prompt-text">How do I report a financial cybercrime?</span>
-            </button>
-            <button type="button" class="prompt-btn" data-query="Can someone send me money by asking me to scan a QR code?">
-              <span class="prompt-icon" aria-hidden="true">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="2" width="5" height="5"/><rect x="9" y="2" width="5" height="5"/><rect x="2" y="9" width="5" height="5"/><path d="M9 14h5v-5"/></svg>
-              </span>
-              <span class="prompt-text">Can someone send me money by asking me to scan a QR code?</span>
-            </button>
+          </form>
+          <div class="chat-composer-footer">
+            <span class="composer-shortcut-hint">Press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to send</span>
+            <div id="chat-char-count" class="char-count" aria-live="polite">0 / 1000</div>
           </div>
         </div>
       </div>
 
-      <!-- Offline notice (shown when AI not configured) -->
-      <div id="offline-notice" class="offline-notice" hidden>
-        <strong>Offline mode:</strong> IBM Granite is not configured. Answers are drawn from the local RBI/NPCI knowledge base only.
-        Configure <code>WATSONX_API_KEY</code> and <code>WATSONX_PROJECT_ID</code> in your <code>.env</code> file to enable live AI responses.
-      </div>
+      <!-- Supporting Sidebar (Desktop Workspace) -->
+      <aside class="chat-safety-sidebar" aria-label="Financial Safety Reference">
+        <!-- Card 1: 24x7 Emergency Helpline -->
+        <div class="sidebar-box sidebar-emergency-box">
+          <div class="sidebar-box-header">
+            <span class="sidebar-pill pill-danger">Emergency 24×7</span>
+            <h3 class="sidebar-box-title">Cybercrime Helpline</h3>
+          </div>
+          <div class="sidebar-hotline-display">
+            <a href="tel:1930" class="sidebar-hotline-number" title="Call 1930 immediately">1930</a>
+            <p class="sidebar-hotline-note">Call immediately to trigger automated bank fund-freezes across 400+ banks (CFCFRMS network).</p>
+          </div>
+          <div class="sidebar-secondary-contact">
+            <span class="sec-label">RBI Banking Ombudsman:</span>
+            <a href="tel:14448" class="sec-link"><strong>14448</strong> (Toll-Free)</a>
+          </div>
+        </div>
 
-      <!-- Input area -->
-      <form id="chat-form" class="chat-form" autocomplete="off" novalidate>
-        <label for="chat-input" class="sr-only">Your question</label>
-        <textarea
-          id="chat-input"
-          name="query"
-          class="chat-input"
-          rows="2"
-          maxlength="1000"
-          placeholder="Ask about UPI safety, suspicious SMS, loan offers, or government schemes…"
-          aria-label="Your question (maximum 1000 characters)"
-          required
-        ></textarea>
-        <button type="submit" id="chat-submit" class="btn btn-primary" aria-label="Send message">
-          <span class="btn-label">Send</span>
-          <span class="btn-spinner hidden" hidden aria-hidden="true"></span>
-        </button>
-      </form>
-      <div id="chat-char-count" class="char-count" aria-live="polite">0 / 1000</div>
+        <!-- Card 2: 3 Golden Rules of UPI -->
+        <div class="sidebar-box sidebar-rules-box">
+          <div class="sidebar-box-header">
+            <span class="sidebar-pill pill-neutral">NPCI &amp; RBI Rules</span>
+            <h3 class="sidebar-box-title">3 Golden Rules of UPI</h3>
+          </div>
+          <ul class="sidebar-rules-list">
+            <li>
+              <div class="rule-badge">1</div>
+              <div class="rule-content">
+                <strong>PIN is only for sending:</strong> You never enter your UPI PIN to receive money or cashback.
+              </div>
+            </li>
+            <li>
+              <div class="rule-badge">2</div>
+              <div class="rule-content">
+                <strong>QR codes pay, never credit:</strong> Scanning any QR code always debits funds from your account.
+              </div>
+            </li>
+            <li>
+              <div class="rule-badge">3</div>
+              <div class="rule-content">
+                <strong>3-day zero liability:</strong> Report unauthorized transactions within 3 working days (RBI Circular DBR.No.Leg.BC.78).
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Card 3: Official Verification Portals -->
+        <div class="sidebar-box sidebar-portals-box">
+          <div class="sidebar-box-header">
+            <span class="sidebar-pill pill-neutral">Official Links</span>
+            <h3 class="sidebar-box-title">Verification Portals</h3>
+          </div>
+          <ul class="sidebar-portal-links">
+            <li>
+              <a href="https://cybercrime.gov.in" target="_blank" rel="noopener noreferrer" class="portal-link-row">
+                <span class="portal-name">cybercrime.gov.in</span>
+                <span class="portal-icon" aria-hidden="true">↗</span>
+              </a>
+              <span class="portal-description">National Cybercrime Reporting Portal</span>
+            </li>
+            <li>
+              <a href="https://sachet.rbi.org.in" target="_blank" rel="noopener noreferrer" class="portal-link-row">
+                <span class="portal-name">sachet.rbi.org.in</span>
+                <span class="portal-icon" aria-hidden="true">↗</span>
+              </a>
+              <span class="portal-description">Verify registered NBFCs and digital lenders</span>
+            </li>
+            <li>
+              <a href="https://cms.rbi.org.in" target="_blank" rel="noopener noreferrer" class="portal-link-row">
+                <span class="portal-name">cms.rbi.org.in</span>
+                <span class="portal-icon" aria-hidden="true">↗</span>
+              </a>
+              <span class="portal-description">RBI Complaint Management System</span>
+            </li>
+          </ul>
+        </div>
+      </aside>
+
     </div>
   </section>
 
