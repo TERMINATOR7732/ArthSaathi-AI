@@ -129,7 +129,24 @@ def chat() -> tuple[Response, int]:
                        result["provider_error"])
         result["provider_error"] = "IBM watsonx.ai request failed. Serving offline response."
 
-    return jsonify(result), 200
+    latency = result.get("latency_ms", {})
+    logger.info(
+        "POST /api/chat — len=%d status=%s source=%s total_ms=%.1f retrieval_ms=%.1f provider_ms=%.1f",
+        len(query),
+        result["status"],
+        response.source,
+        latency.get("total", 0.0),
+        latency.get("retrieval", 0.0),
+        latency.get("provider", 0.0),
+    )
+
+    resp = jsonify(result)
+    resp.headers["Server-Timing"] = (
+        f"retrieval;dur={latency.get('retrieval', 0.0)}, "
+        f"provider;dur={latency.get('provider', 0.0)}, "
+        f"total;dur={latency.get('total', 0.0)}"
+    )
+    return resp, 200
 
 
 @app.post("/api/apr")

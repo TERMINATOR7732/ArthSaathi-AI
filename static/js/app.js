@@ -155,7 +155,9 @@ function sourceLabel(source) {
    Chat
    ========================================================================= */
 
-function appendMessage({ role, body, source, fraudAlerts, passages, loading }) {
+let isChatSubmitting = false;
+
+function appendMessage({ role, body, source, fraudAlerts, passages, loading, latencyMs }) {
   const history = document.getElementById("chat-history");
   if (!history) return null;
 
@@ -177,6 +179,15 @@ function appendMessage({ role, body, source, fraudAlerts, passages, loading }) {
     srcEl.textContent = sourceLabel(source);
     meta.appendChild(srcEl);
   }
+
+  if (latencyMs && typeof latencyMs.total === "number") {
+    const latEl = document.createElement("span");
+    latEl.className = "message-latency";
+    latEl.title = `Total: ${latencyMs.total}ms (Retrieval: ${latencyMs.retrieval || 0}ms, AI: ${latencyMs.provider || 0}ms)`;
+    latEl.textContent = `${(latencyMs.total / 1000).toFixed(1)}s`;
+    meta.appendChild(latEl);
+  }
+
   wrapper.appendChild(meta);
 
   // Body
@@ -200,7 +211,14 @@ function appendMessage({ role, body, source, fraudAlerts, passages, loading }) {
   const content = document.createElement("div");
   content.className = "message-content";
   if (loading) {
-    content.textContent = body;
+    content.innerHTML = `
+      <div class="thinking-indicator" role="status" aria-live="polite">
+        <span class="thinking-dots" aria-hidden="true">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        </span>
+        <span class="thinking-text">${escapeHtml(body || "Analyzing financial guidelines…")}</span>
+      </div>
+    `;
   } else {
     content.innerHTML = renderMarkdown(body);
   }
@@ -247,12 +265,35 @@ function escapeHtml(str) {
 }
 
 function setSubmitting(submitting) {
+  isChatSubmitting = submitting;
   const btn     = document.getElementById("chat-submit");
   const label   = btn ? btn.querySelector(".btn-label") : null;
   const spinner = btn ? btn.querySelector(".btn-spinner") : null;
-  if (btn)     btn.disabled = submitting;
-  if (label)   label.textContent = submitting ? "Sending…" : "Send";
-  if (spinner) spinner.hidden = !submitting;
+  const input   = document.getElementById("chat-input");
+
+  if (btn) {
+    btn.disabled = submitting;
+    btn.setAttribute("aria-busy", submitting ? "true" : "false");
+  }
+  if (label) {
+    label.textContent = submitting ? "Sending…" : "Send";
+  }
+  if (spinner) {
+    if (submitting) {
+      spinner.removeAttribute("hidden");
+      spinner.classList.remove("hidden");
+      spinner.style.display = "inline-block";
+    } else {
+      spinner.setAttribute("hidden", "");
+      spinner.classList.add("hidden");
+      spinner.style.display = "none";
+    }
+  }
+  if (input && submitting) {
+    input.setAttribute("aria-busy", "true");
+  } else if (input) {
+    input.removeAttribute("aria-busy");
+  }
 }
 
 function initChat() {
@@ -261,6 +302,19 @@ function initChat() {
   const count = document.getElementById("chat-char-count");
 
   if (!form || !input) return;
+
+  // Clickable example prompt starter buttons
+  const promptButtons = document.querySelectorAll(".prompt-btn");
+  promptButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (isChatSubmitting) return;
+      const q = btn.dataset.query;
+      if (!q) return;
+      input.value = q;
+      count.textContent = `${q.length} / ${MAX_QUERY}`;
+      form.requestSubmit();
+    });
+  });
 
   // Character counter
   input.addEventListener("input", () => {
@@ -279,34 +333,67 @@ function initChat() {
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
+
+    // Prevent duplicate concurrent requests
+    if (isChatSubmitting) return;
+
     const query = input.value.trim();
     if (!query) return;
     if (query.length > MAX_QUERY) return;
 
-    // Show user message
-    appendMessage({ role: "user", body: query, source: null });
+    // Safely capture query before clearing input
     input.value = "";
     count.textContent = `0 / ${MAX_QUERY}`;
+
+    // Hide starter example prompts on first query submission
+    const examplePrompts = document.getElementById("example-prompts");
+    if (examplePrompts) {
+      examplePrompts.hidden = true;
+    }
+
+    // Show user message
+    appendMessage({ role: "user", body: query, source: null });
 
     // Show loading indicator
     const loadingMsg = appendMessage({
       role: "assistant",
-      body: "Thinking…",
+      body: "Analyzing financial guidelines…",
       source: null,
       loading: true,
     });
     setSubmitting(true);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
+
     try {
-      const res  = await fetch(API.CHAT, {
+      const res = await fetch(API.CHAT, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ query }),
+        signal:  controller.signal,
       });
-      const data = await res.json();
 
       // Remove loading message
       if (loadingMsg) loadingMsg.remove();
+
+      if (!res.ok) {
+        let errDetail = `Server returned HTTP ${res.status}`;
+        try {
+          const errData = await res.json();
+          if (errData && errData.message) errDetail = errData.message;
+        } catch {
+          // Response body was not JSON
+        }
+        appendMessage({
+          role:   "assistant",
+          body:   `Error: ${errDetail}. Please try again.`,
+          source: "provider_error",
+        });
+        return;
+      }
+
+      const data = await res.json();
 
       if (data.status === "error") {
         appendMessage({
@@ -325,16 +412,22 @@ function initChat() {
           source:      data.source || data.status,
           fraudAlerts: data.fraud_alerts || [],
           passages:    data.passages || [],
+          latencyMs:   data.latency_ms || null,
         });
       }
     } catch (err) {
       if (loadingMsg) loadingMsg.remove();
+      let errorMsg = "Could not reach the server. Please check your internet connection and try again.";
+      if (err.name === "AbortError") {
+        errorMsg = "The request timed out while contacting the assistant. Please try asking again.";
+      }
       appendMessage({
         role:   "assistant",
-        body:   "Could not reach the server. Please ensure the application is running.",
+        body:   errorMsg,
         source: "provider_error",
       });
     } finally {
+      clearTimeout(timeoutId);
       setSubmitting(false);
       input.focus();
     }

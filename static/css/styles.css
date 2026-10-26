@@ -117,7 +117,7 @@
   --radius-md: 6px;
 
   /* Layout */
-  --max-content: 760px;
+  --max-content: 1000px;
   --header-h:    60px;
 }
 
@@ -129,6 +129,10 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 html {
@@ -366,34 +370,34 @@ a:focus-visible {
   gap: var(--space-3);
 }
 
-/* Chat history — scrollable column, no outer border */
+/* Chat history — scrollable column, generous reading container */
 .chat-history {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  min-height: 320px;
-  max-height: 480px;
+  min-height: 400px;
+  max-height: calc(100vh - 290px);
   overflow-y: auto;
   padding: var(--space-4) 0;
   scroll-padding-bottom: var(--space-4);
 }
 
 /* Thin scrollbar */
-.chat-history::-webkit-scrollbar { width: 4px; }
+.chat-history::-webkit-scrollbar { width: 5px; }
 .chat-history::-webkit-scrollbar-track { background: transparent; }
-.chat-history::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.chat-history::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
 
 /* Message bubbles — asymmetric layout, editorial style */
 .message {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  max-width: 88%;
+  max-width: 84%;
 }
 .message-user { align-self: flex-end; }
 .message-assistant { align-self: flex-start; }
 
-/* Meta row: role name + source stamp */
+/* Meta row: role name + source stamp + latency */
 .message-meta {
   display: flex;
   align-items: center;
@@ -402,7 +406,20 @@ a:focus-visible {
 }
 
 .message-role {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-muted);
+}
+
+.message-latency {
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  color: var(--ink-muted);
+  opacity: 0.75;
+  margin-left: auto;
+}
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -576,11 +593,111 @@ a:focus-visible {
   line-height: 1.5;
 }
 
-/* Loading state */
+/* Loading & thinking state */
 .message-loading .message-body {
   color: var(--ink-muted);
   font-style: italic;
-  border-left-color: var(--border-strong);
+  border-left-color: var(--blue-mid);
+  background: var(--paper-raised);
+}
+
+.thinking-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.88rem;
+  color: var(--ink-muted);
+  font-style: normal;
+}
+
+.thinking-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.thinking-dots .dot {
+  width: 6px;
+  height: 6px;
+  background: var(--blue-mid);
+  border-radius: 50%;
+  animation: thinking-bounce 1.4s infinite ease-in-out both;
+}
+
+.thinking-dots .dot:nth-child(1) { animation-delay: -0.32s; }
+.thinking-dots .dot:nth-child(2) { animation-delay: -0.16s; }
+.thinking-dots .dot:nth-child(3) { animation-delay: 0s; }
+
+@keyframes thinking-bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.35; }
+  40% { transform: scale(1.15); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking-dots .dot { animation: none; opacity: 0.7; }
+}
+
+/* Example Prompts Starter Container */
+.example-prompts {
+  margin: var(--space-2) 0 var(--space-3) 0;
+  padding: var(--space-4);
+  background: var(--paper-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.example-prompts-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+  margin-bottom: var(--space-3);
+}
+
+.prompt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-2);
+}
+
+.prompt-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-ui);
+  font-size: 0.84rem;
+  line-height: 1.4;
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s, transform 0.1s;
+}
+
+.prompt-btn:hover {
+  border-color: var(--blue-mid);
+  background: #ffffff;
+  transform: translateY(-1px);
+}
+
+.prompt-btn:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.prompt-icon {
+  color: var(--saffron);
+  flex-shrink: 0;
+  margin-top: 2px;
+  display: inline-flex;
+}
+
+.prompt-text {
+  flex: 1;
 }
 
 /* Offline notice */
@@ -684,15 +801,25 @@ a:focus-visible {
 
 /* Spinner */
 .btn-spinner {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
+  display: none;
+  width: 13px;
+  height: 13px;
   border: 2px solid rgba(255,255,255,0.35);
   border-top-color: #fff;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;
+  vertical-align: middle;
+  margin-left: 6px;
 }
+.btn-spinner:not([hidden]):not(.hidden) {
+  display: inline-block;
+}
+.btn-spinner[hidden],
+.btn-spinner.hidden {
+  display: none !important;
+}
+
 @keyframes spin { to { transform: rotate(360deg); } }
 
 @media (prefers-reduced-motion: reduce) {
@@ -705,7 +832,7 @@ a:focus-visible {
    large and unambiguous. The explainer section uses a distinct surface.
    ───────────────────────────────────────────────────────────────────────────── */
 
-.calculator-layout { max-width: 540px; }
+.calculator-layout { max-width: 620px; }
 
 .panel-header {
   margin-bottom: var(--space-5);
@@ -865,7 +992,7 @@ a:focus-visible {
    distinguished as the most critical action.
    ───────────────────────────────────────────────────────────────────────────── */
 
-.emergency-layout { max-width: 660px; }
+.emergency-layout { max-width: 820px; }
 
 .emergency-heading {
   color: var(--danger);

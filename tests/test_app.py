@@ -38,6 +38,9 @@ from arthsaathi_agent import (
     EmergencyProtocolAgent,
     GraniteLLMAgent,
     calculate_annualized_cost,
+    detect_language,
+    is_greeting,
+    get_deterministic_greeting,
 )
 
 # ---------------------------------------------------------------------------
@@ -985,5 +988,188 @@ def test_render_blueprint_configuration():
     assert "plan: free" in content, "render.yaml must enforce free plan"
     assert "gunicorn app:app" in content, "render.yaml must specify gunicorn startCommand"
     assert "/api/health" in content, "render.yaml must configure healthCheckPath"
+
+
+# ===========================================================================
+# 14. Language Policy, Greeting Behavior, and Latency Metrics
+# ===========================================================================
+
+def test_detect_language_english():
+    """English queries and greetings must be classified as 'en'."""
+    assert detect_language("hi") == "en"
+    assert detect_language("hello") == "en"
+    assert detect_language("Hey!") == "en"
+    assert detect_language("Good morning") == "en"
+    assert detect_language("What is a UPI collect request?") == "en"
+    assert detect_language("How do I stay safe from predatory loan apps?") == "en"
+
+
+def test_detect_language_hindi():
+    """Hindi queries with Devanagari script must be classified as 'hi'."""
+    assert detect_language("यूपीआई पिन क्या है?") == "hi"
+    assert detect_language("नमस्ते, मुझे बैंक खाते की सुरक्षा के बारे में बताएं") == "hi"
+    assert detect_language("पैसे कट गए लेकिन ट्रांसफर नहीं हुआ") == "hi"
+
+
+def test_detect_language_marathi():
+    """Marathi queries with characteristic Marathi vocabulary must be classified as 'mr'."""
+    assert detect_language("मला सांगा यूपीआई पिन कसा बदलायचा?") == "mr"
+    assert detect_language("नमस्कार! बँक खाते सुरक्षित कसे ठेवावे?") == "mr"
+    assert detect_language("माझ्या खात्यातून पैसे गेले पण मिळाले नाहीत") == "mr"
+
+
+def test_detect_language_hinglish():
+    """Hinglish queries (Hindi in Latin script) must be classified as 'hinglish'."""
+    assert detect_language("kya mujhe QR scan karke paise mil sakte hain?") == "hinglish"
+    assert detect_language("mera paisa kat gaya aur account me nahi aaya") == "hinglish"
+    assert detect_language("bhai ye loan app scam hai kya kaise pata kare") == "hinglish"
+
+
+def test_english_greeting_returns_english_not_hindi():
+    """
+    Sending 'hi' or 'hello' must NEVER produce Hindi or Devanagari script.
+    It must return an authoritative English greeting as ArthSaathi.
+    """
+    is_greet, lang = is_greeting("hi")
+    assert is_greet is True
+    assert lang == "en"
+
+    greeting_text = get_deterministic_greeting("en")
+    assert "ArthSaathi" in greeting_text
+    assert "Hello!" in greeting_text
+    assert "1930" in greeting_text
+    # Ensure zero Devanagari characters in English greeting
+    devanagari_chars = [c for c in greeting_text if "\u0900" <= c <= "\u097F"]
+    assert len(devanagari_chars) == 0, f"English greeting contained Devanagari: {devanagari_chars}"
+
+    # Verify offline fallback produces English greeting for 'hi'
+    offline_msg = GraniteLLMAgent._offline_answer("", query="hi")
+    assert "Hello!" in offline_msg
+    assert "ArthSaathi" in offline_msg
+    devanagari_in_offline = [c for c in offline_msg if "\u0900" <= c <= "\u097F"]
+    assert len(devanagari_in_offline) == 0
+
+
+def test_granite_language_directive_injection():
+    """
+    GraniteLLMAgent.generate must inject the correct LANGUAGE DIRECTIVE into
+    the system prompt based on detected language.
+    """
+    agent = GraniteLLMAgent()
+    captured_messages = []
+
+    mock_client = mock.MagicMock()
+    mock_client.chat.return_value = {
+        "choices": [{"message": {"content": "Mocked AI answer"}}]
+    }
+
+    with mock.patch.object(agent, "configured", True), \
+         mock.patch.object(agent, "_ready", True), \
+         mock.patch.object(agent, "_client", mock_client):
+
+        # Test English query directive
+        agent.generate("hi", "")
+        call_args = mock_client.chat.call_args[1]
+        sys_content = call_args["messages"][0]["content"]
+        assert "LANGUAGE DIRECTIVE: The user communicated in English" in sys_content
+        assert "You MUST respond STRICTLY in English" in sys_content
+        assert "Do NOT switch to Hindi" in sys_content
+
+        # Test Hindi query directive
+        agent.generate("यूपीआई पिन क्या है?", "")
+        sys_content = mock_client.chat.call_args[1]["messages"][0]["content"]
+        assert "LANGUAGE DIRECTIVE: The user communicated in Hindi" in sys_content
+        assert "Devanagari script" in sys_content
+
+        # Test Marathi query directive
+        agent.generate("मला सांगा यूपीआई पिन कसा बदलायचा?", "")
+        sys_content = mock_client.chat.call_args[1]["messages"][0]["content"]
+        assert "LANGUAGE DIRECTIVE: The user communicated in Marathi" in sys_content
+
+        # Test Hinglish query directive
+        agent.generate("kya QR scan se paise aate hain?", "")
+        sys_content = mock_client.chat.call_args[1]["messages"][0]["content"]
+        assert "LANGUAGE DIRECTIVE: The user communicated in Hinglish" in sys_content
+
+
+def test_chat_response_latency_timing_and_header(client):
+    """
+    POST /api/chat must return a latency_ms object with 'total', 'retrieval',
+    and 'provider' measurements, and include a valid Server-Timing header.
+    """
+    resp = client.post(
+        "/api/chat",
+        content_type="application/json",
+        data=json.dumps({"query": "What is UPI auto-pay?"}),
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+
+    assert "latency_ms" in data
+    lat = data["latency_ms"]
+    assert "total" in lat
+    assert "retrieval" in lat
+    assert "provider" in lat
+    assert isinstance(lat["total"], (int, float))
+    assert lat["total"] >= 0
+
+    server_timing = resp.headers.get("Server-Timing")
+    assert server_timing is not None, "Response must include Server-Timing header"
+    assert "retrieval;dur=" in server_timing
+    assert "provider;dur=" in server_timing
+    assert "total;dur=" in server_timing
+
+
+# ===========================================================================
+# 15. Frontend Contract & UI Overhaul Verification
+# ===========================================================================
+
+def test_frontend_example_prompts_configured():
+    """
+    templates/index.html must contain the 4 clickable starter prompts requested in P2.
+    """
+    html_path = Path(__file__).parent.parent / "templates" / "index.html"
+    assert html_path.exists(), "templates/index.html must exist"
+    html = html_path.read_text(encoding="utf-8")
+
+    assert "How can I identify a UPI payment scam?" in html
+    assert "Is this loan offer suspicious?" in html
+    assert "How do I report a financial cybercrime?" in html
+    assert "Can someone send me money by asking me to scan a QR code?" in html
+    assert 'id="example-prompts"' in html
+
+
+def test_frontend_spinner_css_rule_hidden_enforcement():
+    """
+    styles.css must enforce [hidden] { display: none !important; } and ensure
+    .btn-spinner[hidden] is hidden, preventing the persistent loading spinner bug.
+    """
+    css_path = Path(__file__).parent.parent / "static" / "css" / "styles.css"
+    assert css_path.exists(), "static/css/styles.css must exist"
+    css = css_path.read_text(encoding="utf-8")
+
+    assert "[hidden]" in css
+    assert "display: none !important" in css
+    assert ".btn-spinner[hidden]" in css or ".btn-spinner.hidden" in css
+    assert "--max-content: 1000px" in css, "Desktop max-content should be expanded"
+
+
+def test_frontend_loading_lifecycle_patterns_in_app_js():
+    """
+    static/js/app.js must implement:
+    1. isChatSubmitting duplicate-request guard
+    2. AbortController request timeout
+    3. Proper setSubmitting clearing in a finally block
+    4. thinking-indicator markup
+    """
+    js_path = Path(__file__).parent.parent / "static" / "js" / "app.js"
+    assert js_path.exists(), "static/js/app.js must exist"
+    js = js_path.read_text(encoding="utf-8")
+
+    assert "isChatSubmitting" in js, "isChatSubmitting flag must be present"
+    assert "AbortController" in js, "AbortController timeout handling must be present"
+    assert "thinking-indicator" in js, "thinking-indicator must be rendered during loading"
+    assert "finally" in js, "finally block must be present"
+
 
 

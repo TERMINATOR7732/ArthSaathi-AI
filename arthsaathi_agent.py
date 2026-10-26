@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -59,6 +60,7 @@ class OrchestratorResponse:
     emergency: bool = False
     passages: list[Passage] = field(default_factory=list)
     provider_error: Optional[str] = None
+    latency_ms: dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -68,6 +70,7 @@ class OrchestratorResponse:
             "emergency": self.emergency,
             "passages": [{"id": p.id, "text": p.text[:400]} for p in self.passages],
             "provider_error": self.provider_error,
+            "latency_ms": self.latency_ms,
         }
 
 
@@ -280,6 +283,123 @@ class EmergencyProtocolAgent:
 
 
 # ---------------------------------------------------------------------------
+# Language detection and greeting policy
+# ---------------------------------------------------------------------------
+
+_GREETING_PATTERNS = [
+    re.compile(r"^(hi|hello|hey|hiya|howdy|greetings)[\s!.]*$", re.IGNORECASE),
+    re.compile(r"^(good\s+(morning|afternoon|evening|day))[\s!.]*$", re.IGNORECASE),
+    re.compile(r"^(namaste|namaskar|pranam)[\s!.]*$", re.IGNORECASE),
+    re.compile(r"^(नमस्ते|नमस्कार|प्रणाम|हेलो|हाय)[\s।!.]*$", re.IGNORECASE),
+]
+
+_DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
+
+# Characteristic Marathi tokens (words/morphemes distinct from standard Hindi)
+_MARATHI_SPECIFIC_TOKENS = {
+    "आहे", "नाही", "सांगा", "माहिती", "कसे", "कशी", "काय", "झाले", "माझे",
+    "माझ्या", "मिळाले", "करावे", "करावी", "होते", "आहोत", "तक्रार", "नमस्कार",
+    "बदलायचा", "ठेवावे", "कसा"
+}
+
+# Characteristic Hindi tokens (words/morphemes distinct from Marathi)
+_HINDI_SPECIFIC_TOKENS = {
+    "है", "नहीं", "बताएं", "बताओ", "जानकारी", "कैसे", "क्या", "हुआ", "मेरा",
+    "मेरी", "मेरे", "मुझे", "करें", "करो", "नमस्ते", "प्रणाम", "बारे", "खाते", "खाता"
+}
+
+# Characteristic Hinglish tokens (Latin-script transliterated Hindi)
+_HINGLISH_TOKENS = {
+    "kya", "kaise", "mera", "meri", "mere", "paise", "paisa", "bheja",
+    "aaya", "kata", "kat", "karo", "karna", "nahi", "nahin", "batao",
+    "chahiye", "hoga", "hogi", "bhai", "aap", "apna", "apni", "wala",
+    "wali", "wale", "dekh", "raha", "rahi", "thik", "theek", "khata",
+    "dhokhadhadi", "madad"
+}
+
+
+def detect_language(text: str) -> str:
+    """
+    Classify input query language into one of: 'en', 'hi', 'hinglish', 'mr'.
+    Defaults to 'en' (English).
+    """
+    clean = text.strip()
+    if not clean:
+        return "en"
+
+    # Check for Devanagari script
+    if _DEVANAGARI_RE.search(clean):
+        words = set(re.findall(r"[\u0900-\u097F]+", clean))
+        marathi_hits = len(words.intersection(_MARATHI_SPECIFIC_TOKENS))
+        hindi_hits = len(words.intersection(_HINDI_SPECIFIC_TOKENS))
+        if marathi_hits > hindi_hits:
+            return "mr"
+        return "hi"
+
+    # Latin script: tokenize alphabetic words
+    tokens = [t.lower() for t in re.findall(r"\b[a-zA-Z]+\b", clean)]
+    if not tokens:
+        return "en"
+
+    # Single-word or pure English greetings MUST be English
+    if len(tokens) <= 2 and any(p.match(clean) for p in _GREETING_PATTERNS[:2]):
+        return "en"
+
+    hinglish_matches = [t for t in tokens if t in _HINGLISH_TOKENS]
+    # If 2 or more Hinglish tokens, or >= 25% of tokens match
+    if len(hinglish_matches) >= 2 or (tokens and len(hinglish_matches) / len(tokens) >= 0.25):
+        return "hinglish"
+
+    return "en"
+
+
+def is_greeting(query: str) -> tuple[bool, str]:
+    """
+    Determine if the query is a greeting.
+    Returns (is_greeting_bool, detected_language).
+    """
+    clean = query.strip()
+    for pattern in _GREETING_PATTERNS:
+        if pattern.match(clean):
+            lang = detect_language(clean)
+            return True, lang
+    return False, detect_language(clean)
+
+
+def get_deterministic_greeting(lang: str) -> str:
+    """Return an authoritative, warm greeting tailored to the detected language."""
+    if lang == "mr":
+        return (
+            "नमस्कार! मी **अर्थसाथी** आहे, तुमचा डिजिटल आर्थिक साक्षरता आणि यूपीआई फसवणूक "
+            "प्रतिबंधक सहाय्यक.\n\n"
+            "मी तुम्हाला यूपीआई सुरक्षा नियम, संशयास्पद कर्ज अ‍ॅप्स ओळखणे आणि आर्थिक फसवणूक झाल्यास "
+            "काय करावे याबाबत मार्गदर्शन करू शकतो.\n\n"
+            "मला तुमचा प्रश्न विचारा — त्वरित सायबर फसवणूक मदतीसाठी **1930** वर कॉल करा."
+        )
+    elif lang in ("hi", "hinglish"):
+        if lang == "hinglish":
+            return (
+                "Namaste! Main hoon **ArthSaathi**, aapka digital financial literacy aur UPI fraud shield.\n\n"
+                "Aap mujhse UPI safety rules, suspicious loan apps, fraud SMS, ya cybercrime reporting "
+                "ke baare mein pooch sakte hain.\n\n"
+                "Apna sawaal neeche type karein — kisi bhi emergency ke liye turant **1930** par call karein."
+            )
+        return (
+            "नमस्ते! मैं **अर्थसाथी** हूँ, आपका डिजिटल वित्तीय साक्षरता और यूपीआई धोखाधड़ी सुरक्षा सहायक।\n\n"
+            "मैं आपको यूपीआई सुरक्षा नियम समझने, संदिग्ध लोन ऐप्स पहचानने और धोखाधड़ी की स्थिति में "
+            "उचित कदम उठाने में मदद कर सकता हूँ।\n\n"
+            "कृपया अपना प्रश्न नीचे पूछें — किसी भी वित्तीय धोखाधड़ी की तुरंत शिकायत के लिए **1930** पर कॉल करें।"
+        )
+    # Default: English
+    return (
+        "Hello! I am **ArthSaathi**, your digital financial literacy and UPI fraud-prevention assistant.\n\n"
+        "I can help you understand UPI safety rules, recognize payment scams, verify loan terms, "
+        "and guide you on reporting cyber fraud.\n\n"
+        "How can I assist your financial safety today? (For immediate cyber-fraud reporting, call **1930** 24×7)."
+    )
+
+
+# ---------------------------------------------------------------------------
 # Agent 4 — IBM Granite LLM
 # ---------------------------------------------------------------------------
 
@@ -302,7 +422,7 @@ class GraniteLLMAgent:
         "of India financial inclusion schemes. "
         "Always give accurate, actionable advice based only on the provided context. "
         "Flag potential fraud clearly. Use ₹ for currency. "
-        "Respond in clear English; you may include Hindi or Hinglish phrases where helpful. "
+        "Respond in clear, accessible language adhering strictly to the user's language. "
         "Never give personalized investment advice. "
         "Always direct users to official government portals for authoritative information. "
         "If the context does not contain a relevant answer, say so explicitly."
@@ -344,17 +464,50 @@ class GraniteLLMAgent:
         source_label: "granite" | "not_configured" | "provider_error"
         """
         if not self.configured:
-            return self._offline_answer(context), "not_configured"
+            return self._offline_answer(context, query=query), "not_configured"
 
         if not self._ready or self._client is None:
             err = self.init_error or "SDK initialization failed"
-            return self._offline_answer(context), f"provider_error:{err}"
+            return self._offline_answer(context, query=query), f"provider_error:{err}"
+
+        lang = detect_language(query)
+        greeting_flag, _ = is_greeting(query)
+
+        if lang == "hi":
+            lang_directive = (
+                "LANGUAGE DIRECTIVE: The user communicated in Hindi. "
+                "You MUST respond in clear, accessible Hindi using Devanagari script."
+            )
+        elif lang == "mr":
+            lang_directive = (
+                "LANGUAGE DIRECTIVE: The user communicated in Marathi. "
+                "You MUST respond in clear, accessible Marathi using Devanagari script."
+            )
+        elif lang == "hinglish":
+            lang_directive = (
+                "LANGUAGE DIRECTIVE: The user communicated in Hinglish. "
+                "Respond in natural, conversational Hinglish using Latin script."
+            )
+        else:  # Default: 'en'
+            lang_directive = (
+                "LANGUAGE DIRECTIVE: The user communicated in English. "
+                "You MUST respond STRICTLY in English. "
+                "Do NOT switch to Hindi, do NOT use Devanagari script, and do NOT include Hindi greetings or translations."
+            )
+
+        if greeting_flag:
+            lang_directive += (
+                f" The user sent a greeting ('{query}'). Greet them warmly as ArthSaathi (AI financial literacy "
+                "and UPI fraud shield) in the specified language, explain what financial safety guidance "
+                "you provide, and invite their question."
+            )
 
         messages = [
             {
                 "role": "system",
                 "content": (
                     f"{self._SYSTEM_PROMPT}\n\n"
+                    f"{lang_directive}\n\n"
                     f"### Knowledge Base Context:\n{context}"
                 ),
             },
@@ -368,11 +521,15 @@ class GraniteLLMAgent:
             answer = result["choices"][0]["message"]["content"].strip()
             return answer, "granite"
         except Exception as exc:
-            return self._offline_answer(context), f"provider_error:{exc}"
+            return self._offline_answer(context, query=query), f"provider_error:{exc}"
 
     @staticmethod
-    def _offline_answer(context: str) -> str:
-        """Return best-available KB content with a clear offline notice."""
+    def _offline_answer(context: str, query: str = "") -> str:
+        """Return best-available KB content with a clear offline notice, or a friendly greeting."""
+        if query and is_greeting(query)[0]:
+            lang = detect_language(query)
+            return get_deterministic_greeting(lang)
+
         if context.strip():
             snippet = context[:1200].strip()
             return (
@@ -452,6 +609,7 @@ class ArthSaathiOrchestrator:
 
     def answer(self, query: str) -> OrchestratorResponse:
         """Process a user query and return a structured OrchestratorResponse."""
+        t0 = time.perf_counter()
         query = query.strip()
 
         # Agent 2: fraud alerts
@@ -461,11 +619,15 @@ class ArthSaathiOrchestrator:
         is_emergency = self.emergency.should_escalate(query)
 
         # Agent 1: retrieve relevant passages
+        t_rag0 = time.perf_counter()
         passages = self.rag.retrieve(query, top_k=5)
+        retrieval_ms = (time.perf_counter() - t_rag0) * 1000.0
         context = "\n\n".join(p.text for p in passages)
 
         # Agent 4: generate answer
+        t_llm0 = time.perf_counter()
         answer_text, source = self.llm.generate(query, context)
+        provider_ms = (time.perf_counter() - t_llm0) * 1000.0
 
         # Prepend emergency protocol if triggered
         if is_emergency:
@@ -476,6 +638,13 @@ class ArthSaathiOrchestrator:
             provider_error = source[len("provider_error:"):]
             source = "provider_error"
 
+        total_ms = (time.perf_counter() - t0) * 1000.0
+        latency_ms = {
+            "retrieval": round(retrieval_ms, 1),
+            "provider": round(provider_ms, 1),
+            "total": round(total_ms, 1),
+        }
+
         return OrchestratorResponse(
             answer=answer_text,
             source=source,
@@ -483,6 +652,7 @@ class ArthSaathiOrchestrator:
             emergency=is_emergency,
             passages=passages,
             provider_error=provider_error,
+            latency_ms=latency_ms,
         )
 
     @property
