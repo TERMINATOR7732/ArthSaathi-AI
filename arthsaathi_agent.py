@@ -29,10 +29,34 @@ from typing import Optional
 _HERE = Path(__file__).parent
 KB_DIR = _HERE / "knowledge_base"
 
+try:
+    from dotenv import load_dotenv
+    _dotenv_path = _HERE / ".env"
+    if _dotenv_path.is_file():
+        load_dotenv(dotenv_path=_dotenv_path)
+except Exception:
+    pass
+
 _KB_FILES = [
     "rbi_npci_financial_literacy_kb.txt",
     "rbi_whitelist_and_cyber_stats.txt",
 ]
+
+
+def get_config_var(key: str, default: str = "") -> str:
+    """
+    Retrieve configuration value from Streamlit secrets or environment variables.
+    Checks st.secrets first (for Streamlit Community Cloud), then os.getenv / .env.
+    """
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets") and st.secrets is not None and key in st.secrets:
+            val = str(st.secrets[key]).strip()
+            if val:
+                return val
+    except Exception:
+        pass
+    return os.getenv(key, default).strip()
 
 
 # ---------------------------------------------------------------------------
@@ -435,10 +459,10 @@ class GraniteLLMAgent:
         self.configured = False
         self.init_error: Optional[str] = None
 
-        api_key = os.getenv("WATSONX_API_KEY", "").strip()
-        project_id = os.getenv("WATSONX_PROJECT_ID", "").strip()
-        url = os.getenv("WATSONX_URL", "https://us-south.ml.cloud.ibm.com").strip()
-        model_id = os.getenv("WATSONX_MODEL_ID", "ibm/granite-4-h-small").strip()
+        api_key = get_config_var("WATSONX_API_KEY", "")
+        project_id = get_config_var("WATSONX_PROJECT_ID", "")
+        url = get_config_var("WATSONX_URL", "https://us-south.ml.cloud.ibm.com")
+        model_id = get_config_var("WATSONX_MODEL_ID", "ibm/granite-4-h-small")
 
         if not api_key or not project_id:
             return  # not configured; graceful degradation
@@ -459,19 +483,22 @@ class GraniteLLMAgent:
             self.init_error = str(exc)
             self._ready = False
 
-    def generate(self, query: str, context: str) -> tuple[str, str]:
+    def generate(self, query: str, context: str, target_lang: Optional[str] = None) -> tuple[str, str]:
         """
         Returns (answer_text, source_label).
         source_label: "granite" | "not_configured" | "provider_error"
         """
         if not self.configured:
-            return self._offline_answer(context, query=query), "not_configured"
+            return self._offline_answer(context, query=query, target_lang=target_lang), "not_configured"
 
         if not self._ready or self._client is None:
             err = self.init_error or "SDK initialization failed"
-            return self._offline_answer(context, query=query), f"provider_error:{err}"
+            return self._offline_answer(context, query=query, target_lang=target_lang), f"provider_error:{err}"
 
-        lang = detect_language(query)
+        if target_lang and target_lang != "auto":
+            lang = target_lang
+        else:
+            lang = detect_language(query)
         greeting_flag, _ = is_greeting(query)
 
         if lang == "hi":
@@ -526,17 +553,17 @@ class GraniteLLMAgent:
             return answer, "granite"
         except concurrent.futures.TimeoutError:
             return (
-                self._offline_answer(context, query=query),
+                self._offline_answer(context, query=query, target_lang=target_lang),
                 "provider_error:IBM watsonx.ai request timed out after 50 seconds",
             )
         except Exception as exc:
-            return self._offline_answer(context, query=query), f"provider_error:{exc}"
+            return self._offline_answer(context, query=query, target_lang=target_lang), f"provider_error:{exc}"
 
     @staticmethod
-    def _offline_answer(context: str, query: str = "") -> str:
+    def _offline_answer(context: str, query: str = "", target_lang: Optional[str] = None) -> str:
         """Return best-available KB content with a clear offline notice, or a friendly greeting."""
         if query and is_greeting(query)[0]:
-            lang = detect_language(query)
+            lang = target_lang if (target_lang and target_lang != "auto") else detect_language(query)
             return get_deterministic_greeting(lang)
 
         if context.strip():
@@ -545,7 +572,7 @@ class GraniteLLMAgent:
                 "**[Offline Knowledge Base — IBM Granite not configured or unavailable]**\n\n"
                 + snippet
                 + "\n\n---\n"
-                "*Configure WATSONX_API_KEY and WATSONX_PROJECT_ID in your .env file "
+                "*Configure WATSONX_API_KEY and WATSONX_PROJECT_ID in your .env file or Streamlit secrets "
                 "to enable live IBM Granite responses.*"
             )
         return (
@@ -616,7 +643,7 @@ class ArthSaathiOrchestrator:
         self.emergency = EmergencyProtocolAgent()
         self.llm = GraniteLLMAgent()
 
-    def answer(self, query: str) -> OrchestratorResponse:
+    def answer(self, query: str, target_lang: Optional[str] = None) -> OrchestratorResponse:
         """Process a user query and return a structured OrchestratorResponse."""
         t0 = time.perf_counter()
         query = query.strip()
@@ -635,7 +662,7 @@ class ArthSaathiOrchestrator:
 
         # Agent 4: generate answer
         t_llm0 = time.perf_counter()
-        answer_text, source = self.llm.generate(query, context)
+        answer_text, source = self.llm.generate(query, context, target_lang=target_lang)
         provider_ms = (time.perf_counter() - t_llm0) * 1000.0
 
         # Prepend emergency protocol if triggered
