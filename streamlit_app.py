@@ -200,14 +200,31 @@ with st.sidebar:
 
     # Diagnostics & Status Badge
     st.subheader("System Status")
-    is_live = orchestrator.llm_configured and orchestrator.llm_ready
-    if is_live:
+    _llm_configured = orchestrator.llm_configured
+    _llm_ready = orchestrator.llm_ready
+    _llm_init_error = orchestrator.llm_init_error  # exception class name only; never contains secrets
+
+    if _llm_configured and _llm_ready:
+        # Credentials present and SDK initialized successfully.
         st.markdown(
             '<span class="status-pill status-live">● IBM Granite Live</span>',
             unsafe_allow_html=True,
         )
         st.caption("Model: `ibm/granite-4-h-small` | 24×7 Active")
+    elif _llm_configured and not _llm_ready:
+        # Credentials were present but SDK initialization failed.
+        st.markdown(
+            '<span class="status-pill status-offline">⚠ Init Failed — Offline Fallback</span>',
+            unsafe_allow_html=True,
+        )
+        if _llm_init_error:
+            # _llm_init_error holds only the exception class name (e.g. "ImportError"),
+            # never raw exception text, auth headers, or tokens.
+            st.caption(f"SDK init error: `{_llm_init_error}`. Check Streamlit logs for details.")
+        else:
+            st.caption("SDK initialization did not complete. Check Streamlit logs.")
     else:
+        # Credentials not configured at all.
         st.markdown(
             '<span class="status-pill status-offline">○ Offline Knowledge Base</span>',
             unsafe_allow_html=True,

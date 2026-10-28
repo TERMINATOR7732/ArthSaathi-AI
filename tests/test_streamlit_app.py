@@ -319,3 +319,106 @@ def test_theme_mode_toggle():
     at.run()
     assert not at.exception
     assert at.session_state.theme_mode == "Dark"
+
+
+# ---------------------------------------------------------------------------
+# 11. Diagnostic: missing credentials vs init-failed vs ready
+# ---------------------------------------------------------------------------
+
+def test_llm_init_error_stores_only_class_name_not_raw_message():
+    """init_error must hold only the exception class name — never raw str(exc)."""
+    agent = GraniteLLMAgent()
+    sentinel_secret = "sk-secret-api-key-value-that-must-never-appear"
+
+    with mock.patch.dict(os.environ, {
+        "WATSONX_API_KEY": sentinel_secret,
+        "WATSONX_PROJECT_ID": "test-project-id",
+    }):
+        # Make the SDK import succeed but ModelInference constructor raise with
+        # a message that contains the sentinel secret so we can verify it is
+        # NOT stored in init_error.
+        fake_creds_cls = mock.MagicMock(return_value=mock.MagicMock())
+        fake_model_cls = mock.MagicMock(
+            side_effect=RuntimeError(f"auth failed for key {sentinel_secret}")
+        )
+        with mock.patch.dict("sys.modules", {
+            "ibm_watsonx_ai": mock.MagicMock(Credentials=fake_creds_cls),
+            "ibm_watsonx_ai.foundation_models": mock.MagicMock(ModelInference=fake_model_cls),
+        }):
+            fresh_agent = GraniteLLMAgent()
+
+    assert fresh_agent.configured is True
+    assert fresh_agent._ready is False
+    assert fresh_agent.init_error == "RuntimeError"
+    # The raw exception message — which contains the secret — must NOT be stored.
+    assert sentinel_secret not in (fresh_agent.init_error or "")
+
+
+def test_orchestrator_exposes_init_error_as_class_name():
+    """llm_init_error on the orchestrator must equal the exception class name."""
+    with mock.patch.dict(os.environ, {
+        "WATSONX_API_KEY": "dummy-key",
+        "WATSONX_PROJECT_ID": "dummy-proj",
+    }):
+        fake_creds_cls = mock.MagicMock(return_value=mock.MagicMock())
+        fake_model_cls = mock.MagicMock(side_effect=ImportError("sdk not installed"))
+        with mock.patch.dict("sys.modules", {
+            "ibm_watsonx_ai": mock.MagicMock(Credentials=fake_creds_cls),
+            "ibm_watsonx_ai.foundation_models": mock.MagicMock(ModelInference=fake_model_cls),
+        }):
+            orch = ArthSaathiOrchestrator()
+
+    assert orch.llm_configured is True
+    assert orch.llm_ready is False
+    assert orch.llm_init_error == "ImportError"
+
+
+def test_orchestrator_no_init_error_when_not_configured():
+    """When credentials are absent, init_error must be None (no failure occurred)."""
+    with mock.patch.dict(os.environ, {"WATSONX_API_KEY": "", "WATSONX_PROJECT_ID": ""}):
+        orch = ArthSaathiOrchestrator()
+    assert orch.llm_configured is False
+    assert orch.llm_init_error is None
+
+
+def test_orchestrator_no_init_error_on_success():
+    """When SDK init succeeds, init_error must be None."""
+    agent = GraniteLLMAgent()
+    # Simulate a fully ready agent (credentials present, init succeeded).
+    mock.patch.object(agent, "configured", True).start()
+    mock.patch.object(agent, "_ready", True).start()
+    agent.init_error = None
+    assert agent.init_error is None
+
+
+def test_generate_falls_back_when_configured_but_not_ready():
+    """configured=True, _ready=False must return offline fallback, not granite."""
+    agent = GraniteLLMAgent()
+    agent.configured = True
+    agent._ready = False
+    agent.init_error = "ImportError"
+    answer, source = agent.generate("How to file a complaint?", "some KB context")
+    assert "Offline Knowledge Base" in answer
+    assert source.startswith("provider_error")
+
+
+def test_stderr_log_does_not_contain_api_key(capsys):
+    """The stderr diagnostic log must not contain the API key value."""
+    secret_key = "super-secret-watsonx-key-xyz"
+    with mock.patch.dict(os.environ, {
+        "WATSONX_API_KEY": secret_key,
+        "WATSONX_PROJECT_ID": "test-project",
+    }):
+        fake_creds_cls = mock.MagicMock(return_value=mock.MagicMock())
+        fake_model_cls = mock.MagicMock(side_effect=ConnectionError("conn refused"))
+        with mock.patch.dict("sys.modules", {
+            "ibm_watsonx_ai": mock.MagicMock(Credentials=fake_creds_cls),
+            "ibm_watsonx_ai.foundation_models": mock.MagicMock(ModelInference=fake_model_cls),
+        }):
+            GraniteLLMAgent()
+
+    captured = capsys.readouterr()
+    assert secret_key not in captured.err
+    assert "conn refused" not in captured.err   # raw exc message must not appear
+    assert "GraniteLLMAgent init failed" in captured.err
+    assert "ConnectionError" in captured.err

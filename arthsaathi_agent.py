@@ -480,8 +480,20 @@ class GraniteLLMAgent:
             )
             self._ready = True
         except Exception as exc:
-            self.init_error = str(exc)
+            # Store only the exception class name — never str(exc), which can
+            # contain auth headers, URLs with tokens, or other sensitive data.
+            exc_class = type(exc).__name__
+            self.init_error = exc_class
             self._ready = False
+            # Emit a sanitized diagnostic to the process log (captured by
+            # Streamlit Community Cloud and visible in the app's log viewer).
+            import sys
+            print(
+                f"[ArthSaathi] GraniteLLMAgent init failed: {exc_class} — "
+                "credentials were present but SDK initialization did not complete. "
+                f"model_id={model_id!r} url_host={url.split('/')[2] if '/' in url else 'unknown'}",
+                file=sys.stderr,
+            )
 
     def generate(self, query: str, context: str, target_lang: Optional[str] = None) -> tuple[str, str]:
         """
@@ -698,3 +710,8 @@ class ArthSaathiOrchestrator:
     @property
     def llm_ready(self) -> bool:
         return self.llm._ready
+
+    @property
+    def llm_init_error(self) -> Optional[str]:
+        """Exception class name recorded during SDK init, or None.  Never contains secrets."""
+        return self.llm.init_error
