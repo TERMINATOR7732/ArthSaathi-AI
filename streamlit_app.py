@@ -202,7 +202,11 @@ with st.sidebar:
     st.subheader("System Status")
     _llm_configured = orchestrator.llm_configured
     _llm_ready = orchestrator.llm_ready
-    _llm_init_error = orchestrator.llm_init_error  # exception class name only; never contains secrets
+    # llm_init_error is set as an instance attribute in ArthSaathiOrchestrator.__init__.
+    # getattr is used here solely as a safety net for the @st.cache_resource boundary:
+    # if a cached orchestrator instance was created by an older class version (hot-reload
+    # timing window), the attribute will be absent and None is the correct fallback.
+    _llm_init_error: Optional[str] = getattr(orchestrator, "llm_init_error", None)
 
     if _llm_configured and _llm_ready:
         # Credentials present and SDK initialized successfully.

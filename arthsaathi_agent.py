@@ -43,20 +43,64 @@ _KB_FILES = [
 ]
 
 
-def get_config_var(key: str, default: str = "") -> str:
+_WATSONX_CONFIG_KEYS = (
+    "WATSONX_API_KEY",
+    "WATSONX_PROJECT_ID",
+    "WATSONX_URL",
+    "WATSONX_MODEL_ID",
+)
+
+_UUID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+
+
+def _has_enclosing_quotes(val: str) -> bool:
+    """Return True if string has literal enclosing single or double quotes."""
+    if len(val) >= 2:
+        return (val[0] == '"' and val[-1] == '"') or (val[0] == "'" and val[-1] == "'")
+    return False
+
+
+def _get_st_secrets_root_keys() -> list[str]:
+    """Return names of expected watsonx keys found at the root of st.secrets."""
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets") and st.secrets is not None:
+            return [k for k in _WATSONX_CONFIG_KEYS if k in st.secrets]
+    except Exception:
+        pass
+    return []
+
+
+def get_config_var_with_source(key: str, default: str = "") -> tuple[str, str]:
     """
-    Retrieve configuration value from Streamlit secrets or environment variables.
-    Checks st.secrets first (for Streamlit Community Cloud), then os.getenv / .env.
+    Retrieve configuration value and its source ('st.secrets', 'os.environ', or 'default').
+    Checks st.secrets first (for Streamlit Community Cloud), then os.environ, then default.
+    Preserves exact whitespace handling and empty variable semantics.
     """
     try:
         import streamlit as st
         if hasattr(st, "secrets") and st.secrets is not None and key in st.secrets:
             val = str(st.secrets[key]).strip()
             if val:
-                return val
+                return val, "st.secrets"
     except Exception:
         pass
-    return os.getenv(key, default).strip()
+
+    if key in os.environ:
+        return os.environ[key].strip(), "os.environ"
+
+    return default.strip(), "default"
+
+
+def get_config_var(key: str, default: str = "") -> str:
+    """
+    Retrieve configuration value from Streamlit secrets or environment variables.
+    Checks st.secrets first (for Streamlit Community Cloud), then os.getenv / .env.
+    Delegates to get_config_var_with_source for backward compatibility.
+    """
+    return get_config_var_with_source(key, default)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -424,6 +468,26 @@ def get_deterministic_greeting(lang: str) -> str:
     )
 
 
+def _categorize_init_error(exc: Exception) -> str:
+    """Classify an initialization exception into a generic failure category without logging sensitive data."""
+    exc_name = type(exc).__name__.lower()
+    if "credential" in exc_name or "auth" in exc_name or "permission" in exc_name:
+        return "auth_invalid_credentials"
+    if "connect" in exc_name or "timeout" in exc_name or "network" in exc_name:
+        return "network_connection_error"
+    try:
+        msg = str(exc).lower()
+        if "bxnim0415e" in msg or "invalid credentials" in msg or "401" in msg or "403" in msg:
+            return "auth_invalid_credentials"
+        if "connection" in msg or "timed out" in msg:
+            return "network_connection_error"
+    except Exception:
+        pass
+    if isinstance(exc, (ValueError, KeyError)):
+        return "configuration_error"
+    return "initialization_error"
+
+
 # ---------------------------------------------------------------------------
 # Agent 4 — IBM Granite LLM
 # ---------------------------------------------------------------------------
@@ -459,15 +523,33 @@ class GraniteLLMAgent:
         self.configured = False
         self.init_error: Optional[str] = None
 
-        api_key = get_config_var("WATSONX_API_KEY", "")
-        project_id = get_config_var("WATSONX_PROJECT_ID", "")
-        url = get_config_var("WATSONX_URL", "https://us-south.ml.cloud.ibm.com")
-        model_id = get_config_var("WATSONX_MODEL_ID", "ibm/granite-4-h-small")
+        api_key, api_key_src = get_config_var_with_source("WATSONX_API_KEY", "")
+        project_id, proj_id_src = get_config_var_with_source("WATSONX_PROJECT_ID", "")
+        url, url_src = get_config_var_with_source("WATSONX_URL", "https://us-south.ml.cloud.ibm.com")
+        model_id, model_src = get_config_var_with_source("WATSONX_MODEL_ID", "ibm/granite-4-h-small")
 
         if not api_key or not project_id:
             return  # not configured; graceful degradation
 
         self.configured = True
+
+        api_key_has_quotes = _has_enclosing_quotes(api_key)
+        api_key_is_uuid = bool(_UUID_RE.match(api_key))
+        proj_id_is_uuid = bool(_UUID_RE.match(project_id))
+
+        if api_key_has_quotes or api_key_is_uuid:
+            import sys
+            suspicious = []
+            if api_key_has_quotes:
+                suspicious.append("api_key has enclosing quotes (possible TOML formatting issue)")
+            if api_key_is_uuid:
+                suspicious.append("api_key matches UUID structure (possible configuration mismatch / swapped with project_id)")
+            print(
+                f"[ArthSaathi] WARNING: Suspicious credential structure detected — {'; '.join(suspicious)}. "
+                f"sources: api_key={api_key_src}, project_id={proj_id_src}",
+                file=sys.stderr,
+            )
+
         try:
             from ibm_watsonx_ai import Credentials
             from ibm_watsonx_ai.foundation_models import ModelInference
@@ -485,13 +567,29 @@ class GraniteLLMAgent:
             exc_class = type(exc).__name__
             self.init_error = exc_class
             self._ready = False
-            # Emit a sanitized diagnostic to the process log (captured by
-            # Streamlit Community Cloud and visible in the app's log viewer).
+
+            # Categorize failure without exposing exception text
+            failure_cat = _categorize_init_error(exc)
+            root_secrets = _get_st_secrets_root_keys()
+            root_keys_str = ",".join(root_secrets) if root_secrets else "none"
+
+            if "//" in url:
+                url_host = url.split("//")[1].split("/")[0]
+            elif "/" in url:
+                url_host = url.split("/")[0]
+            else:
+                url_host = url or "unknown"
+
             import sys
             print(
-                f"[ArthSaathi] GraniteLLMAgent init failed: {exc_class} — "
+                f"[ArthSaathi] GraniteLLMAgent init failed: {exc_class} [{failure_cat}] — "
                 "credentials were present but SDK initialization did not complete. "
-                f"model_id={model_id!r} url_host={url.split('/')[2] if '/' in url else 'unknown'}",
+                f"sources: api_key={api_key_src}, project_id={proj_id_src}, url={url_src}, model={model_src}; "
+                f"present: api_key={bool(api_key)}, project_id={bool(project_id)}; "
+                f"structure: api_key_has_quotes={api_key_has_quotes}, api_key_is_uuid={api_key_is_uuid}, "
+                f"proj_id_is_uuid={proj_id_is_uuid}; "
+                f"root_secrets_found=[{root_keys_str}]; "
+                f"model_id={model_id!r} url_host={url_host}",
                 file=sys.stderr,
             )
 
@@ -654,6 +752,11 @@ class ArthSaathiOrchestrator:
         self.fraud = FraudDetectionAgent()
         self.emergency = EmergencyProtocolAgent()
         self.llm = GraniteLLMAgent()
+        # Mirror the LLM diagnostic state as instance attributes so they survive
+        # @st.cache_resource across Streamlit hot-reloads (the cached instance
+        # retains its own __dict__ even when the class is redefined by a new
+        # module load; class-level @property lookups would fail in that scenario).
+        self.llm_init_error: Optional[str] = self.llm.init_error
 
     def answer(self, query: str, target_lang: Optional[str] = None) -> OrchestratorResponse:
         """Process a user query and return a structured OrchestratorResponse."""
@@ -711,7 +814,11 @@ class ArthSaathiOrchestrator:
     def llm_ready(self) -> bool:
         return self.llm._ready
 
-    @property
-    def llm_init_error(self) -> Optional[str]:
-        """Exception class name recorded during SDK init, or None.  Never contains secrets."""
-        return self.llm.init_error
+    # NOTE: llm_init_error is intentionally set as an instance attribute in
+    # __init__ (above) rather than as a @property.  This ensures the attribute
+    # exists in the instance __dict__ and is accessible even when Streamlit's
+    # @st.cache_resource returns a cached instance whose __class__ references
+    # an older version of ArthSaathiOrchestrator (e.g. after a hot-reload
+    # within the same worker process).  A @property only exists on the class
+    # object; an instance attribute exists on the instance regardless of which
+    # class version created it.

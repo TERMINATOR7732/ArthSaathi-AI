@@ -31,8 +31,12 @@ from arthsaathi_agent import (
     calculate_annualized_cost,
     detect_language,
     get_config_var,
+    get_config_var_with_source,
     get_deterministic_greeting,
     is_greeting,
+    _UUID_RE,
+    _has_enclosing_quotes,
+    _get_st_secrets_root_keys,
 )
 
 _ROOT = Path(__file__).resolve().parent.parent
@@ -422,3 +426,325 @@ def test_stderr_log_does_not_contain_api_key(capsys):
     assert "conn refused" not in captured.err   # raw exc message must not appear
     assert "GraniteLLMAgent init failed" in captured.err
     assert "ConnectionError" in captured.err
+
+
+# ---------------------------------------------------------------------------
+# 12. Regression: AttributeError for llm_init_error (production hotfix)
+# ---------------------------------------------------------------------------
+
+def test_llm_init_error_is_instance_attribute_not_only_property():
+    """llm_init_error must live in the orchestrator's __dict__ (instance attribute),
+    not only on the class.  This guards against @st.cache_resource returning a
+    cached instance whose __class__ is from a prior module load (which would cause
+    an AttributeError if the attribute were a class-level @property only)."""
+    with mock.patch.dict(os.environ, {"WATSONX_API_KEY": "", "WATSONX_PROJECT_ID": ""}):
+        orch = ArthSaathiOrchestrator()
+    # Must be present directly on the instance — not just inherited from the class.
+    assert "llm_init_error" in orch.__dict__, (
+        "llm_init_error must be an instance attribute set in __init__, "
+        "not only a @property, so it survives @st.cache_resource hot-reload."
+    )
+
+
+def test_llm_init_error_instance_attribute_on_init_failure():
+    """After a simulated init failure, llm_init_error is in the instance __dict__."""
+    with mock.patch.dict(os.environ, {
+        "WATSONX_API_KEY": "dummy-key",
+        "WATSONX_PROJECT_ID": "dummy-proj",
+    }):
+        fake_creds_cls = mock.MagicMock(return_value=mock.MagicMock())
+        fake_model_cls = mock.MagicMock(side_effect=ValueError("bad config"))
+        with mock.patch.dict("sys.modules", {
+            "ibm_watsonx_ai": mock.MagicMock(Credentials=fake_creds_cls),
+            "ibm_watsonx_ai.foundation_models": mock.MagicMock(ModelInference=fake_model_cls),
+        }):
+            orch = ArthSaathiOrchestrator()
+
+    assert "llm_init_error" in orch.__dict__
+    assert orch.llm_init_error == "ValueError"
+    assert orch.__dict__["llm_init_error"] == "ValueError"
+
+
+def test_orchestrator_llm_init_error_accessible_via_getattr():
+    """getattr(orch, 'llm_init_error', None) must return the correct value,
+    mirroring how streamlit_app.py accesses it as a cache-safe boundary."""
+    with mock.patch.dict(os.environ, {"WATSONX_API_KEY": "", "WATSONX_PROJECT_ID": ""}):
+        orch = ArthSaathiOrchestrator()
+    # Normal access
+    assert orch.llm_init_error is None
+    # getattr access (as used in streamlit_app.py)
+    assert getattr(orch, "llm_init_error", "SENTINEL") is None
+
+
+def test_no_attribute_error_on_fresh_orchestrator_without_credentials():
+    """Constructing an orchestrator without credentials must never raise AttributeError
+    on llm_init_error.  This directly reproduces the production crash scenario."""
+    with mock.patch.dict(os.environ, {"WATSONX_API_KEY": "", "WATSONX_PROJECT_ID": ""}):
+        orch = ArthSaathiOrchestrator()
+    # Must not raise AttributeError
+    try:
+        val = orch.llm_init_error
+    except AttributeError as e:
+        raise AssertionError(
+            f"AttributeError raised accessing llm_init_error: {e}\n"
+            "This is the production crash scenario — the fix is incomplete."
+        ) from e
+    assert val is None
+
+
+def test_no_attribute_error_on_init_failure_orchestrator():
+    """Orchestrator with failed SDK init must not raise AttributeError on llm_init_error."""
+    with mock.patch.dict(os.environ, {
+        "WATSONX_API_KEY": "dummy-key",
+        "WATSONX_PROJECT_ID": "dummy-proj",
+    }):
+        fake_creds_cls = mock.MagicMock(return_value=mock.MagicMock())
+        fake_model_cls = mock.MagicMock(side_effect=RuntimeError("simulated sdk failure"))
+        with mock.patch.dict("sys.modules", {
+            "ibm_watsonx_ai": mock.MagicMock(Credentials=fake_creds_cls),
+            "ibm_watsonx_ai.foundation_models": mock.MagicMock(ModelInference=fake_model_cls),
+        }):
+            orch = ArthSaathiOrchestrator()
+    try:
+        val = orch.llm_init_error
+    except AttributeError as e:
+        raise AssertionError(
+            f"AttributeError on init-failure orchestrator: {e}"
+        ) from e
+    assert val == "RuntimeError"
+
+
+def test_streamlit_sidebar_status_no_attribute_error_offline():
+    """The Streamlit app's sidebar status block must render without AttributeError
+    in offline mode (no credentials), reproducing the deployment crash path."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+    assert not at.exception, (
+        f"Streamlit app raised an exception in offline mode: {at.exception}"
+    )
+
+
+def test_stale_cache_simulation_getattr_fallback():
+    """Simulate @st.cache_resource returning an object that lacks llm_init_error
+    (as if created by an older class version).  getattr must return None rather
+    than raising AttributeError."""
+    with mock.patch.dict(os.environ, {"WATSONX_API_KEY": "", "WATSONX_PROJECT_ID": ""}):
+        orch = ArthSaathiOrchestrator()
+
+    # Simulate a stale cache: manually delete the instance attribute to reproduce
+    # the condition where the cached object was created without llm_init_error.
+    del orch.__dict__["llm_init_error"]
+    assert "llm_init_error" not in orch.__dict__
+
+    # Direct attribute access would now raise AttributeError (demonstrates the bug):
+    # (We skip actually calling orch.llm_init_error directly to avoid relying on
+    # whether the class still has a @property fallback.)
+
+    # The streamlit_app.py access pattern using getattr must NOT raise:
+    val = getattr(orch, "llm_init_error", None)
+    assert val is None, "getattr safety net must return None for stale cached instance"
+
+
+
+# ---------------------------------------------------------------------------
+# 13. IBM IAM Configuration Diagnostics and Precedence Tests
+# ---------------------------------------------------------------------------
+
+def test_get_config_var_with_source_st_secrets_precedence():
+    """st.secrets takes precedence over environment variables."""
+    fake_secrets = {"WATSONX_API_KEY": "secret-api-key-val"}
+    with mock.patch("streamlit.secrets", fake_secrets):
+        with mock.patch.dict(os.environ, {"WATSONX_API_KEY": "env-api-key-val"}):
+            val, src = get_config_var_with_source("WATSONX_API_KEY")
+            assert val == "secret-api-key-val"
+            assert src == "st.secrets"
+            # get_config_var backward compatibility
+            assert get_config_var("WATSONX_API_KEY") == "secret-api-key-val"
+
+
+def test_get_config_var_with_source_env_fallback_when_secret_missing_or_empty():
+    """Falls back to os.environ when st.secrets has missing key or empty value."""
+    # Subtest A: empty string in secrets falls through to environment
+    fake_empty_secrets = {"WATSONX_API_KEY": "   "}
+    with mock.patch("streamlit.secrets", fake_empty_secrets):
+        with mock.patch.dict(os.environ, {"WATSONX_API_KEY": "env-fallback-key"}):
+            val, src = get_config_var_with_source("WATSONX_API_KEY")
+            assert val == "env-fallback-key"
+            assert src == "os.environ"
+
+    # Subtest B: missing key in secrets falls through to environment
+    fake_missing_secrets = {"OTHER_KEY": "something"}
+    with mock.patch("streamlit.secrets", fake_missing_secrets):
+        with mock.patch.dict(os.environ, {"WATSONX_API_KEY": "env-fallback-key"}):
+            val, src = get_config_var_with_source("WATSONX_API_KEY")
+            assert val == "env-fallback-key"
+            assert src == "os.environ"
+
+
+def test_get_config_var_with_source_default_fallback():
+    """Falls back to default value when missing from both secrets and environment."""
+    with mock.patch("streamlit.secrets", {}):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            val, src = get_config_var_with_source("NONEXISTENT_VAR", "https://default.host")
+            assert val == "https://default.host"
+            assert src == "default"
+            assert get_config_var("NONEXISTENT_VAR", "https://default.host") == "https://default.host"
+
+    # Preserves empty string behavior when env var is explicitly empty string
+    with mock.patch("streamlit.secrets", {}):
+        with mock.patch.dict(os.environ, {"EXPLICIT_EMPTY": ""}):
+            val, src = get_config_var_with_source("EXPLICIT_EMPTY", "default_val")
+            assert val == ""
+            assert src == "os.environ"
+
+
+def test_uuid_shaped_api_key_and_project_id_detection(capsys):
+    """UUID regex accurately classifies 36-character UUID vs IBM API key and logs warning."""
+    # UUID regex verification
+    valid_uuid = "0a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d"
+    standard_api_key = "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0"
+
+    assert bool(_UUID_RE.match(valid_uuid)) is True
+    assert bool(_UUID_RE.match(standard_api_key)) is False
+
+    # Simulate suspicious case: API key matches UUID (possible swap)
+    with mock.patch.dict(os.environ, {
+        "WATSONX_API_KEY": valid_uuid,
+        "WATSONX_PROJECT_ID": valid_uuid,
+    }):
+        fake_creds_cls = mock.MagicMock(return_value=mock.MagicMock())
+        fake_model_cls = mock.MagicMock(side_effect=RuntimeError("simulated auth fail"))
+        with mock.patch.dict("sys.modules", {
+            "ibm_watsonx_ai": mock.MagicMock(Credentials=fake_creds_cls),
+            "ibm_watsonx_ai.foundation_models": mock.MagicMock(ModelInference=fake_model_cls),
+        }):
+            GraniteLLMAgent()
+
+    captured = capsys.readouterr()
+    # Warning about suspicious credential structure must be emitted
+    assert "WARNING: Suspicious credential structure detected" in captured.err
+    assert "api_key matches UUID structure (possible configuration mismatch / swapped with project_id)" in captured.err
+    assert "api_key_is_uuid=True" in captured.err
+    assert "proj_id_is_uuid=True" in captured.err
+
+
+def test_enclosing_quotes_detection_does_not_modify_credentials(capsys):
+    """Detects literal enclosing single or double quotes without modifying the key passed to SDK."""
+    assert _has_enclosing_quotes('"double-quoted"') is True
+    assert _has_enclosing_quotes("'single-quoted'") is True
+    assert _has_enclosing_quotes("unquoted-key") is False
+    assert _has_enclosing_quotes('"') is False
+    assert _has_enclosing_quotes("") is False
+
+    quoted_key = '"my-literal-quoted-api-key"'
+    with mock.patch.dict(os.environ, {
+        "WATSONX_API_KEY": quoted_key,
+        "WATSONX_PROJECT_ID": "test-project-id",
+    }):
+        fake_creds_cls = mock.MagicMock(return_value=mock.MagicMock())
+        fake_model_cls = mock.MagicMock(side_effect=ValueError("bad key format"))
+        with mock.patch.dict("sys.modules", {
+            "ibm_watsonx_ai": mock.MagicMock(Credentials=fake_creds_cls),
+            "ibm_watsonx_ai.foundation_models": mock.MagicMock(ModelInference=fake_model_cls),
+        }):
+            GraniteLLMAgent()
+
+        # The SDK Credentials call must have received the UNTOUCHED quoted key
+        fake_creds_cls.assert_called_once()
+        _, kwargs = fake_creds_cls.call_args
+        assert kwargs.get("api_key") == quoted_key, "Quotes must NOT be stripped before passing to SDK"
+
+    captured = capsys.readouterr()
+    assert "WARNING: Suspicious credential structure detected" in captured.err
+    assert "api_key has enclosing quotes (possible TOML formatting issue)" in captured.err
+    assert "api_key_has_quotes=True" in captured.err
+
+
+def test_root_level_secret_presence_reporting(capsys):
+    """Reports expected watsonx keys found at root of st.secrets without exposing values."""
+    fake_st_secrets = {
+        "WATSONX_API_KEY": "synthetic-key",
+        "WATSONX_PROJECT_ID": "synthetic-proj",
+        "UNRELATED_SECRET": "other-val",
+    }
+    with mock.patch("streamlit.secrets", fake_st_secrets):
+        root_keys = _get_st_secrets_root_keys()
+        assert "WATSONX_API_KEY" in root_keys
+        assert "WATSONX_PROJECT_ID" in root_keys
+        assert "WATSONX_URL" not in root_keys
+        assert "UNRELATED_SECRET" not in root_keys
+
+        fake_creds_cls = mock.MagicMock(return_value=mock.MagicMock())
+        fake_model_cls = mock.MagicMock(side_effect=Exception("generic failure"))
+        with mock.patch.dict("sys.modules", {
+            "ibm_watsonx_ai": mock.MagicMock(Credentials=fake_creds_cls),
+            "ibm_watsonx_ai.foundation_models": mock.MagicMock(ModelInference=fake_model_cls),
+        }):
+            GraniteLLMAgent()
+
+    captured = capsys.readouterr()
+    assert "root_secrets_found=[WATSONX_API_KEY,WATSONX_PROJECT_ID]" in captured.err
+    assert "synthetic-key" not in captured.err
+    assert "synthetic-proj" not in captured.err
+
+
+def test_diagnostic_output_never_exposes_sentinel_secrets_or_sensitive_exc(capsys):
+    """Sanitized diagnostic output must never expose secret values, prefixes, suffixes, lengths, or raw exception text."""
+    sentinel_key = "SENTINEL-API-KEY-888-HIGHLY-SENSITIVE-VALUE"
+    sentinel_proj = "SENTINEL-PROJECT-ID-999-SECRET-VALUE"
+    sensitive_raw_exc = "BXNIM0415E: Provided API key could not be found. Bearer eyJhbGciOiJIUzI1Ni.jwt_token_payload"
+
+    class SyntheticIAMAuthError(Exception):
+        pass
+
+    with mock.patch.dict(os.environ, {
+        "WATSONX_API_KEY": sentinel_key,
+        "WATSONX_PROJECT_ID": sentinel_proj,
+    }):
+        fake_creds_cls = mock.MagicMock(return_value=mock.MagicMock())
+        fake_model_cls = mock.MagicMock(side_effect=SyntheticIAMAuthError(sensitive_raw_exc))
+        with mock.patch.dict("sys.modules", {
+            "ibm_watsonx_ai": mock.MagicMock(Credentials=fake_creds_cls),
+            "ibm_watsonx_ai.foundation_models": mock.MagicMock(ModelInference=fake_model_cls),
+        }):
+            GraniteLLMAgent()
+
+    captured = capsys.readouterr()
+    # Must NOT expose sentinels or sensitive error payload
+    assert sentinel_key not in captured.err
+    assert sentinel_proj not in captured.err
+    assert sensitive_raw_exc not in captured.err
+    assert "eyJhbGciOi" not in captured.err
+    assert "jwt_token_payload" not in captured.err
+
+    # Must contain safe categorized metadata
+    assert "GraniteLLMAgent init failed: SyntheticIAMAuthError [auth_invalid_credentials]" in captured.err
+    assert "sources: api_key=os.environ, project_id=os.environ" in captured.err
+    assert "present: api_key=True, project_id=True" in captured.err
+
+
+def test_preservation_of_offline_fallback_behavior():
+    """Offline fallback behavior is preserved whether unconfigured or failing initialization."""
+    # Case 1: Unconfigured (missing credentials)
+    with mock.patch.dict(os.environ, {"WATSONX_API_KEY": "", "WATSONX_PROJECT_ID": ""}):
+        agent_unconfigured = GraniteLLMAgent()
+        assert agent_unconfigured.configured is False
+        assert agent_unconfigured._ready is False
+        ans, src = agent_unconfigured.generate("What is UPI?", "Context on UPI safety")
+        assert src == "not_configured"
+        assert "Offline Knowledge Base" in ans
+
+    # Case 2: Configured but SDK initialization fails
+    with mock.patch.dict(os.environ, {"WATSONX_API_KEY": "any-key", "WATSONX_PROJECT_ID": "any-proj"}):
+        fake_creds_cls = mock.MagicMock(return_value=mock.MagicMock())
+        fake_model_cls = mock.MagicMock(side_effect=RuntimeError("simulated failure"))
+        with mock.patch.dict("sys.modules", {
+            "ibm_watsonx_ai": mock.MagicMock(Credentials=fake_creds_cls),
+            "ibm_watsonx_ai.foundation_models": mock.MagicMock(ModelInference=fake_model_cls),
+        }):
+            agent_failed = GraniteLLMAgent()
+            assert agent_failed.configured is True
+            assert agent_failed._ready is False
+            ans, src = agent_failed.generate("What is UPI?", "Context on UPI safety")
+            assert src.startswith("provider_error:RuntimeError")
+            assert "Offline Knowledge Base" in ans
