@@ -297,22 +297,24 @@ class EmergencyProtocolAgent:
 
     # Static guidance — sourced from public RBI/MHA materials
     PROTOCOL = (
-        "## 🚨 Immediate Fraud Response Steps\n\n"
-        "**Step 1 — Call 1930 immediately.**  \n"
-        "National Cybercrime Helpline, 24×7. Triggers automated fund-freeze across 400+ banks "
-        "(CFCFRMS network).\n\n"
-        "**Step 2 — File a complaint online.**  \n"
-        "https://cybercrime.gov.in — submit transaction IDs and debit SMS screenshots.\n\n"
-        "**Step 3 — Block your card/UPI.**  \n"
-        "Use your bank app, IVR helpline, or the number on the back of your debit card.\n\n"
-        "**Step 4 — Notify your bank within 3 working days.**  \n"
-        "RBI Zero-Liability Rule (Circular DBR.No.Leg.BC.78/09.07.005/2017-18): "
-        "reporting within 3 working days of an unauthorized transaction protects your "
-        "entitlement to reimbursement. Note: outcomes depend on individual bank policies "
-        "and the specific circumstances; consult your bank for confirmation.\n\n"
+        "## Immediate Fraud Response Steps\n\n"
+        "**Step 1 — Call 1930 immediately (National Cybercrime Helpline / Cyber Financial Fraud Helpline).**  \n"
+        "Available 24×7. Prompt reporting enables the Citizen Financial Cyber Fraud Reporting & Management System (CFCFRMS) "
+        "to alert concerned banks and authorities to take timely action. "
+        "*Note: A fund freeze, recovery, or refund is not guaranteed; decisions rest with concerned banks and investigating authorities.*  \n\n"
+        "**Step 2 — File an official complaint online.**  \n"
+        "Visit https://cybercrime.gov.in and submit transaction IDs (UTR), debit SMS screenshots, and scam details. "
+        "Preserve the formal acknowledgement number.  \n\n"
+        "**Step 3 — Block your compromised cards and UPI access immediately.**  \n"
+        "Use your bank's mobile application, official net banking, or call the emergency number on the back of your card.  \n\n"
+        "**Step 4 — Notify your bank immediately in writing.**  \n"
+        "Under the RBI customer liability framework (Circular DBR.No.Leg.BC.78/09.07.005/2017-18):\n"
+        "- **Bank Negligence/Deficiency:** Zero customer liability where the deficiency lies with the bank, regardless of when reported.\n"
+        "- **Third-Party Breach:** Zero customer liability if reported within 3 working days of receiving bank communication. If reported within 4 to 7 working days, liability is limited according to RBI transaction slabs. Beyond 7 working days, the bank's board-approved policy applies.\n"
+        "- **Customer Negligence:** Where loss occurs due to sharing credentials (such as OTP or UPI PIN), the customer bears the entire loss until reported to the bank; unauthorized transactions occurring after reporting are borne by the bank.\n"
+        "*Always report immediately — do not delay. Refunds are not automatically guaranteed.*\n\n"
         "**RBI Ombudsman:** https://cms.rbi.org.in | Toll-free: **14448**\n\n"
-        "> ⚠️ Do not delete any messages, transaction records, or screenshots — "
-        "these are evidence."
+        "> Do not delete fraudulent messages, transaction SMS records, call logs, or payment screenshots — these are critical investigation evidence."
     )
 
     def should_escalate(self, query: str) -> bool:
@@ -705,20 +707,27 @@ def calculate_annualized_cost(
     principal: float,
     total_repayment: float,
     tenure_days: int,
+    upfront_fees: float = 0.0,
 ) -> dict:
     """
-    Compute simplified annualized borrowing cost.
+    Compute objective borrowing figures and simplified annualized borrowing cost estimate.
 
     Formula: ((total_repayment - principal) / principal) × (365 / tenure_days) × 100
 
-    This is a simplified estimate, NOT a legally defined APR.
-    Returns a dict with result and validation state.
+    This is an educational estimate, NOT a legally defined APR under the RBI Digital
+    Lending Guidelines (DOR.CRE.REC.66/21.07.001/2022-23). Does not apply an arbitrary
+    universal 36% ceiling. Returns objective monetary values, net disbursement,
+    and factual risk screening indicators.
     """
     errors = []
     if principal <= 0:
         errors.append("Principal must be greater than zero.")
     if tenure_days <= 0:
         errors.append("Tenure must be at least 1 day.")
+    if upfront_fees < 0:
+        errors.append("Upfront deductions cannot be negative.")
+    if upfront_fees >= principal and principal > 0:
+        errors.append("Upfront deductions cannot equal or exceed principal.")
     if not errors and total_repayment < principal:
         errors.append("Total repayment cannot be less than principal.")
     if principal > 100_000_000:
@@ -729,18 +738,43 @@ def calculate_annualized_cost(
     if errors:
         return {"valid": False, "errors": errors}
 
+    net_disbursed = round(principal - upfront_fees, 2)
+    total_borrowing_cost = round((total_repayment - principal) + upfront_fees, 2)
     cost = ((total_repayment - principal) / principal) * (365.0 / tenure_days) * 100
     cost = round(cost, 2)
-    predatory_threshold = 36.0
+
+    risk_indicators = [
+        "Undisclosed or unexplained upfront deductions / processing charges.",
+        "Absence of a standardized Key Fact Statement (KFS) provided prior to loan agreement.",
+        "Lender not identifiable as an RBI-regulated bank or registered NBFC.",
+        "Repayment demands directed to personal accounts or unverified UPI IDs.",
+        "Excessive or coercive collection practices or invasive mobile permissions.",
+    ]
+
+    cost_explanation = (
+        f"Your estimated annualized borrowing cost is {cost:.2f}%. "
+        "Review the Key Fact Statement (KFS), total charges, repayment obligations, "
+        "and lender identity on the RBI Sachet portal before accepting this loan."
+    )
 
     return {
         "valid": True,
+        "gross_principal": principal,
+        "net_disbursed": net_disbursed,
+        "upfront_fees": upfront_fees,
+        "total_repayment": total_repayment,
+        "total_borrowing_cost": total_borrowing_cost,
+        "tenure_days": tenure_days,
         "annualized_cost_pct": cost,
-        "label": "Simplified annualized borrowing cost (estimate only; not a legally defined APR)",
-        "is_predatory": cost > predatory_threshold,
-        "threshold_pct": predatory_threshold,
+        "label": "Estimated annualized borrowing cost (simplified estimate; not a legal APR)",
+        "cost_explanation": cost_explanation,
+        "risk_indicators": risk_indicators,
         "errors": [],
     }
+
+
+# Canonical alias for compatibility
+calculate_effective_apr = calculate_annualized_cost
 
 
 # ---------------------------------------------------------------------------

@@ -131,6 +131,42 @@ def get_custom_css(theme: str | ThemeMode = ThemeMode.LIGHT) -> str:
         line-height: 1.4;
     }}
 
+    /* Icon styling */
+    .as-icon {{
+        display: inline-block;
+        vertical-align: -0.15em;
+        flex-shrink: 0;
+    }}
+
+    /* Trust / Reference Informational Cards */
+    .as-trust-row {{
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+        margin-bottom: 1.25rem;
+    }}
+    .as-trust-card {{
+        background-color: {c.bg_card};
+        border: 1px solid {c.border};
+        border-radius: 6px;
+        padding: 0.75rem 0.9rem;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+    }}
+    .as-trust-title {{
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: {c.text_primary};
+        margin-bottom: 0.2rem;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }}
+    .as-trust-desc {{
+        font-size: 0.76rem;
+        color: {c.text_secondary};
+        line-height: 1.35;
+    }}
+
     /* Action Entry Cards */
     .as-action-card {{
         background-color: {c.bg_card};
@@ -139,17 +175,24 @@ def get_custom_css(theme: str | ThemeMode = ThemeMode.LIGHT) -> str:
         padding: 1rem 1.15rem;
         height: 100%;
         box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
     }}
     .as-action-title {{
         font-size: 0.95rem;
         font-weight: 700;
         color: {c.text_primary};
         margin-bottom: 0.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
     }}
     .as-action-desc {{
         font-size: 0.82rem;
         color: {c.text_secondary};
         line-height: 1.4;
+        margin-bottom: 0.75rem;
     }}
 
     /* Provenance & Source Badges */
@@ -249,6 +292,9 @@ def get_custom_css(theme: str | ThemeMode = ThemeMode.LIGHT) -> str:
             width: 100%;
             justify-content: center;
             font-size: 1rem;
+        }}
+        .as-trust-row {{
+            grid-template-columns: 1fr;
         }}
         .as-action-card {{
             margin-bottom: 0.6rem;

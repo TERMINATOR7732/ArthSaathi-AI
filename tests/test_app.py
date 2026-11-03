@@ -319,27 +319,32 @@ def test_granite_agent_provider_error_not_silent():
 def test_apr_example_case():
     """
     Canonical example: ₹10,000 principal, ₹12,500 repayment, 15 days.
-    Expected output ≈ 608.33%.
+    Expected output ≈ 608.33%. Verifies objective cost breakdown and no universal 36% ceiling.
     """
     result = calculate_annualized_cost(10000, 12500, 15)
     assert result["valid"] is True
     assert abs(result["annualized_cost_pct"] - 608.33) < 0.01, (
         f"Expected ~608.33%, got {result['annualized_cost_pct']}"
     )
-    assert result["is_predatory"] is True
-    assert result["threshold_pct"] == 36.0
+    assert "gross_principal" in result and result["gross_principal"] == 10000.0
+    assert "net_disbursed" in result and result["net_disbursed"] == 10000.0
+    assert "total_borrowing_cost" in result and result["total_borrowing_cost"] == 2500.0
+    assert "risk_indicators" in result and len(result["risk_indicators"]) >= 3
+    assert result.get("threshold_pct") is None, "Universal 36% threshold must be removed"
 
 
-def test_apr_non_predatory():
-    """A 24% annual rate should be flagged as non-predatory."""
+def test_apr_moderate_cost_no_arbitrary_threshold():
+    """A 24% annual rate provides objective calculation without arbitrary predatory labelling."""
     # ₹10,000 for 365 days, repay ₹12,400 → 24%
     result = calculate_annualized_cost(10000, 12400, 365)
     assert result["valid"] is True
-    assert result["is_predatory"] is False
+    assert result["annualized_cost_pct"] == 24.0
+    assert "cost_explanation" in result
+    assert result.get("threshold_pct") is None
 
 
 def test_apr_endpoint_expected_value(client):
-    """POST /api/apr with canonical example must return 608.33%."""
+    """POST /api/apr with canonical example must return 608.33% and objective figures."""
     resp = client.post(
         "/api/apr",
         content_type="application/json",
@@ -349,7 +354,10 @@ def test_apr_endpoint_expected_value(client):
     data = resp.get_json()
     assert data["status"] == "ok"
     assert abs(data["annualized_cost_pct"] - 608.33) < 0.01
-    assert data["is_predatory"] is True
+    assert data["gross_principal"] == 10000.0
+    assert data["net_disbursed"] == 10000.0
+    assert "risk_indicators" in data
+    assert "threshold_pct" not in data
 
 
 def test_apr_zero_principal():
@@ -380,11 +388,11 @@ def test_apr_zero_tenure():
 
 
 def test_apr_equal_principal_and_repayment():
-    """Principal == repayment (0% cost) must be valid and non-predatory."""
+    """Principal == repayment (0% cost) must be valid with objective explanation."""
     result = calculate_annualized_cost(10000, 10000, 30)
     assert result["valid"] is True
     assert result["annualized_cost_pct"] == 0.0
-    assert result["is_predatory"] is False
+    assert "cost_explanation" in result
 
 
 def test_apr_endpoint_missing_field(client):

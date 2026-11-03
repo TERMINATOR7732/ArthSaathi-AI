@@ -17,14 +17,14 @@ ArthSaathi AI is an educational financial safety platform engineered for Indian 
 
 2. **Simplified Loan Cost Calculator (📊)**
    - Computes annualized borrowing costs: `((Repayment − Principal) / Principal) × (365 / Days) × 100`.
-   - Identifies predatory interest rates exceeding RBI's 36% benchmark for regulated NBFCs.
+   - Provides objective borrowing cost analysis and Key Fact Statement (KFS) due diligence indicators under RBI Digital Lending Guidelines.
    - Directly links to the official [RBI Sachet Portal](https://sachet.rbi.org.in) for lender verification.
    - Full input boundary validation with comprehensive error feedback.
 
-3. **1930 Emergency Cybercrime Protocol (🚨)**
+3. **1930 Emergency Cybercrime Protocol**
    - Actionable 5-step response protocol for fraud victims.
-   - Immediate 1930 National Cybercrime Helpline call links triggering automated bank fund-freezes across 400+ banks via CFCFRMS.
-   - Explains the RBI Zero-Liability Rule (Circular DBR.No.Leg.BC.78/09.07.005/2017-18) requiring reporting within 3 working days.
+   - Immediate 1930 National Cybercrime Helpline links to alert authorities and connected banks via CFCFRMS.
+   - Explains the RBI Customer Liability Framework (Circular DBR.No.Leg.BC.78/09.07.005/2017-18) distinguishing bank deficiency, third-party breach notification timelines, and credential negligence.
    - Directory with one-click access to cybercrime.gov.in, RBI Ombudsman (14448), and NPCI dispute portals.
 
 4. **Vernacular Multilingual Support (🌐)**
@@ -222,7 +222,7 @@ Follow this concise sequence when evaluating ArthSaathi AI:
    - Verify: Critical alert immediately warns that scanning a QR code only sends money, never receives it.
 3. **Emergency Escalation (1930 Protocol)**:
    - Ask: *"I was scammed and money was stolen from my account, help me!"*
-   - Verify: Triggers the 1930 National Cybercrime Helpline protocol, cybercrime.gov.in online FIR guide, and RBI 3-day zero liability notification.
+   - Verify: Triggers the 1930 National Cybercrime Helpline protocol, cybercrime.gov.in online reporting guide, and RBI customer liability notification rules.
 4. **Multilingual Proficiency**:
    - Hindi: *"क्या बैंक कभी मुझसे यूपीआई पिन मांग सकता है?"*
    - Marathi: *"मला सांगा यूपीआई पिन कसा बदलायचा?"*
@@ -230,7 +230,7 @@ Follow this concise sequence when evaluating ArthSaathi AI:
 5. **Loan APR Analysis**:
    - Navigate to Tab 2 (**Loan Cost Calculator**).
    - Enter Principal: ₹10,000 | Repayment: ₹12,500 | Tenure: 15 Days.
-   - Result: 608.33% annualized cost — flagged with predatory warning and link to RBI Sachet portal.
+   - Result: 608.33% annualized cost — accompanied by objective cost breakdown, Key Fact Statement (KFS) checklist, and link to RBI Sachet portal.
 6. **Theme & Display**:
    - Toggle between **Light** and **Dark** themes in the sidebar to verify visual contrast and accessibility.
 

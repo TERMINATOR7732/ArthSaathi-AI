@@ -152,18 +152,24 @@ def chat() -> tuple[Response, int]:
 @app.post("/api/apr")
 def apr() -> tuple[Response, int]:
     """
-    Calculate simplified annualized borrowing cost.
+    Calculate objective borrowing figures and simplified annualized borrowing cost estimate.
 
     Request body (JSON):
-      { "principal": 10000, "repayment": 12500, "days": 15 }
+      { "principal": 10000, "repayment": 12500, "days": 15, "upfront_fees": 500 }
 
     Response:
       {
         "status": "ok" | "error",
+        "gross_principal": 10000.0,
+        "net_disbursed": 9500.0,
+        "upfront_fees": 500.0,
+        "total_repayment": 12500.0,
+        "total_borrowing_cost": 3000.0,
+        "tenure_days": 15,
         "annualized_cost_pct": 608.33,
-        "label": "Simplified annualized borrowing cost (estimate only; not a legally defined APR)",
-        "is_predatory": true,
-        "threshold_pct": 36.0
+        "label": "Estimated annualized borrowing cost (simplified estimate; not a legal APR)",
+        "cost_explanation": "...",
+        "risk_indicators": [...]
       }
     """
     data = request.get_json(silent=True)
@@ -176,6 +182,12 @@ def apr() -> tuple[Response, int]:
             return _error(f"Missing required field: '{field_name}'.")
         if not isinstance(data[field_name], (int, float)):
             return _error(f"'{field_name}' must be a number.")
+
+    upfront_fees = 0.0
+    if "upfront_fees" in data:
+        if not isinstance(data["upfront_fees"], (int, float)):
+            return _error("'upfront_fees' must be a number.")
+        upfront_fees = float(data["upfront_fees"])
 
     principal = float(data["principal"])
     repayment = float(data["repayment"])
@@ -192,6 +204,7 @@ def apr() -> tuple[Response, int]:
         principal=principal,
         total_repayment=repayment,
         tenure_days=days,
+        upfront_fees=upfront_fees,
     )
 
     if not result["valid"]:
@@ -199,10 +212,16 @@ def apr() -> tuple[Response, int]:
 
     return jsonify({
         "status": "ok",
+        "gross_principal": result["gross_principal"],
+        "net_disbursed": result["net_disbursed"],
+        "upfront_fees": result["upfront_fees"],
+        "total_repayment": result["total_repayment"],
+        "total_borrowing_cost": result["total_borrowing_cost"],
+        "tenure_days": result["tenure_days"],
         "annualized_cost_pct": result["annualized_cost_pct"],
         "label": result["label"],
-        "is_predatory": result["is_predatory"],
-        "threshold_pct": result["threshold_pct"],
+        "cost_explanation": result["cost_explanation"],
+        "risk_indicators": result["risk_indicators"],
     }), 200
 
 

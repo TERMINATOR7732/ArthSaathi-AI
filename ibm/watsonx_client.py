@@ -63,26 +63,16 @@ class WatsonxClient:
         self._initialize_sdk()
 
     def _initialize_sdk(self) -> None:
-        """Construct SDK Credentials and ModelInference client."""
+        """
+        Construct SDK Credentials and ModelInference client.
+        Enforces strict credential validation and native HttpClientConfig.
+        Fails closed on configuration errors with zero bypass fallbacks.
+        """
         try:
-            # 1. Validate configuration and obtain credentials
-            try:
-                creds = self.auth_client.create_credentials()
-            except IBMConfigError as exc:
-                if exc.category == CATEGORY_CONFIG_CREDENTIAL_FORMAT:
-                    from ibm_watsonx_ai import Credentials
-                    try:
-                        creds = Credentials(
-                            url=self.config.url,
-                            api_key=self.config.api_key,
-                            auth_url="https://iam.cloud.ibm.com/identity/token",
-                        )
-                    except TypeError:
-                        creds = Credentials(url=self.config.url, api_key=self.config.api_key)
-                else:
-                    raise
+            # 1. Validate configuration and obtain credentials strictly through IAM adapter
+            creds = self.auth_client.create_credentials()
 
-            # 2. Construct ModelInference client with native HttpClientConfig and controlled retries
+            # 2. Construct ModelInference client with native HttpClientConfig and disabled retries
             from ibm_watsonx_ai.foundation_models import ModelInference
             from ibm_watsonx_ai.utils.utils import HttpClientConfig
 
@@ -101,42 +91,33 @@ class WatsonxClient:
             )
 
             try:
-                from ibm_watsonx_ai import APIClient
-                api_client = APIClient(
-                    credentials=creds,
-                    project_id=self.config.project_id,
-                    httpx_client=self.http_config,
-                    async_httpx_client=self.http_config,
-                )
                 self._model_inference = ModelInference(
                     model_id=self.config.model_id,
-                    api_client=api_client,
+                    credentials=creds,
+                    project_id=self.config.project_id,
+                    http_client=self.http_config,
                     validate=False,
                     max_retries=0,
                     retry_status_codes=[],
                 )
-            except Exception:
-                try:
-                    self._model_inference = ModelInference(
-                        model_id=self.config.model_id,
-                        credentials=creds,
-                        project_id=self.config.project_id,
-                        validate=False,
-                        max_retries=0,
-                        retry_status_codes=[],
-                    )
-                except TypeError:
-                    self._model_inference = ModelInference(
-                        model_id=self.config.model_id,
-                        credentials=creds,
-                        project_id=self.config.project_id,
-                    )
-                if hasattr(self._model_inference, "_client"):
-                    client_obj = self._model_inference._client
-                    if hasattr(client_obj, "httpx_client"):
-                        client_obj.httpx_client.timeout = self.http_config.timeout
-                    if hasattr(client_obj, "async_httpx_client"):
-                        client_obj.async_httpx_client.timeout = self.http_config.timeout
+            except TypeError:
+                self._model_inference = ModelInference(
+                    model_id=self.config.model_id,
+                    credentials=creds,
+                    project_id=self.config.project_id,
+                    validate=False,
+                    max_retries=0,
+                    retry_status_codes=[],
+                )
+
+            # Propagate timeouts to both synchronous and asynchronous clients
+            if hasattr(self._model_inference, "_client") and self._model_inference._client is not None:
+                client_obj = self._model_inference._client
+                if hasattr(client_obj, "httpx_client") and client_obj.httpx_client is not None:
+                    client_obj.httpx_client.timeout = self.http_config.timeout
+                if hasattr(client_obj, "async_httpx_client") and client_obj.async_httpx_client is not None:
+                    client_obj.async_httpx_client.timeout = self.http_config.timeout
+
             self._ready = True
             self.init_error = None
             self.error_category = None

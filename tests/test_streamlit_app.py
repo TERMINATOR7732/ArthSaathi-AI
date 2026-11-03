@@ -48,15 +48,17 @@ APP_PATH = str(_ROOT / "streamlit_app.py")
 # ---------------------------------------------------------------------------
 
 def test_streamlit_app_loads_without_exception():
-    """Verify streamlit_app.py starts cleanly and renders all 3 tabs."""
+    """Verify streamlit_app.py starts cleanly and renders state-driven navigation for all 3 screens."""
     at = AppTest.from_file(APP_PATH, default_timeout=30)
     at.run()
     assert not at.exception
-    assert len(at.tabs) == 3
-    tab_labels = [t.label for t in at.tabs]
-    assert any("Scam Advisor" in l for l in tab_labels)
-    assert any("Loan Cost Calculator" in l for l in tab_labels)
-    assert any("1930 Emergency Guide" in l for l in tab_labels)
+    assert at.session_state.active_view == "scam_advisor"
+    assert len(at.radio) >= 1
+    nav_radio = at.radio[0]
+    nav_options = nav_radio.options
+    assert any("Scam Advisor" in o for o in nav_options)
+    assert any("Loan Cost Calculator" in o for o in nav_options)
+    assert any("1930 Emergency Guide" in o for o in nav_options)
 
 
 def test_streamlit_sidebar_elements():
@@ -261,15 +263,17 @@ def test_calculator_canonical_case():
     res = calculate_annualized_cost(10000, 12500, 15)
     assert res["valid"] is True
     assert abs(res["annualized_cost_pct"] - 608.33) < 0.01
-    assert res["is_predatory"] is True
+    assert "cost_explanation" in res
+    assert res.get("threshold_pct") is None
 
 
 def test_calculator_standard_rate():
-    """Standard non-predatory rate: ₹10,000 for 1 year, ₹12,000 repayment."""
+    """Standard rate provides objective calculation without arbitrary predatory labelling."""
     res = calculate_annualized_cost(10000, 12000, 365)
     assert res["valid"] is True
     assert abs(res["annualized_cost_pct"] - 20.0) < 0.01
-    assert res["is_predatory"] is False
+    assert "cost_explanation" in res
+    assert res.get("threshold_pct") is None
 
 
 def test_calculator_invalid_inputs():
@@ -649,10 +653,8 @@ def test_enclosing_quotes_detection_does_not_modify_credentials(capsys):
         }):
             GraniteLLMAgent()
 
-        # The SDK Credentials call must have received the UNTOUCHED quoted key
-        fake_creds_cls.assert_called_once()
-        _, kwargs = fake_creds_cls.call_args
-        assert kwargs.get("api_key") == quoted_key, "Quotes must NOT be stripped before passing to SDK"
+        # If literal enclosing quotes are detected, SDK Credentials must NEVER be constructed
+        fake_creds_cls.assert_not_called()
 
     captured = capsys.readouterr()
     assert "WARNING: Suspicious credential structure detected" in captured.err

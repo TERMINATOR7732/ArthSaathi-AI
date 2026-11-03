@@ -18,7 +18,7 @@
 === SECTION 2: PREDATORY LOAN APP IDENTIFICATION ===
 
 1. Legal NBFC/bank loan apps must be registered with RBI. Check: https://www.rbi.org.in/commonman/English/scripts/NBFCs.aspx
-2. APR (Annual Percentage Rate) above 36% is a strong indicator of predatory lending.
+2. Under RBI Digital Lending Guidelines (DOR.CRE.REC.66/21.07.001/2022-23), lenders must disclose all-inclusive APR and provide a standardized Key Fact Statement (KFS) before sanctioning credit. Heavy upfront deductions and ultra-short tenures resulting in exorbitant borrowing costs are critical warning signs.
 3. PM Mudra Yojana offers loans at 8.5%–14% APR — benchmark for fair lending.
 4. Predatory apps demand full repayment in 7–14 days (not EMIs), maximizing effective APR to 200–500%.
 5. Illegal apps access your contacts, gallery, and location to harass defaulters.
@@ -32,9 +32,9 @@
 
 1. National Cybercrime Helpline: 1930 (24×7 active)
 2. Cybercrime Reporting Portal: https://cybercrime.gov.in
-3. RBI Zero-Liability Rule: Report within 3 working days for full protection (Circular DBR.No.Leg.BC.78).
-4. After 3 days but within 7 days: up to 25,000 liability may apply depending on the bank.
-5. "Golden Hour" Rule: Block card/freeze UPI immediately via bank app or 1930 hotline.
+3. RBI Customer Liability Framework (Circular DBR.No.Leg.BC.78/09.07.005/2017-18): Zero liability applies in bank negligence regardless of reporting, or in third-party breach if reported within 3 working days of bank communication.
+4. For third-party breach reported between 4 to 7 working days, customer liability is limited per RBI transaction slabs; beyond 7 days bank policy applies. In customer negligence (e.g. sharing OTP/PIN), customer bears loss until reported.
+5. "Golden Hour" Protocol: Immediately report to 1930 and block cards/UPI via bank app to enable authorities and banks to take timely action (refund/freeze is not guaranteed).
 6. NPCI Dispute Resolution: Raise a dispute via your UPI app within 24 hours for faster resolution.
 7. Gather evidence: screenshots, transaction IDs, chat logs before reporting.
 8. File an FIR at nearest Cyber Cell or local police station after reporting on 1930.

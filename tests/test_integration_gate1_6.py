@@ -294,7 +294,8 @@ def test_financial_safety_calculator_bounds():
     assert res["valid"] is True
     # (1000 / 10000) * (365 / 30) * 100 = 121.67%
     assert res["annualized_cost_pct"] == 121.67
-    assert res["is_predatory"] is True
+    assert res["total_borrowing_cost"] == 1000.0
+    assert res.get("threshold_pct") is None
 
     # Zero or negative principal rejected
     res_invalid = calculate_annualized_cost(principal=0, total_repayment=1000, tenure_days=30)
@@ -437,7 +438,8 @@ def test_streamlit_apptest_runtime_starter_and_reset():
         at.run()
 
         # Click starter 0 button
-        at.button[0].click().run()
+        starter_btn = [b for b in at.button if b.key == "starter_0"][0]
+        starter_btn.click().run()
         assert len(at.exception) == 0
         assert len(at.session_state.messages) == 2
         assert at.session_state.messages[0]["role"] == "user"
@@ -445,7 +447,7 @@ def test_streamlit_apptest_runtime_starter_and_reset():
         assert at.session_state.messages[1]["source"] == "not_configured"
 
         # Click reset chat button in sidebar
-        reset_btns = [b for b in at.sidebar.button if "Reset Chat" in (b.label or "")]
+        reset_btns = [b for b in at.sidebar.button if "Reset" in (b.label or "")]
         assert len(reset_btns) == 1
         reset_btns[0].click().run()
         assert len(at.exception) == 0

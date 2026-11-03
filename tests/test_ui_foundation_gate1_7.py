@@ -78,17 +78,19 @@ def test_navigation_tab_definitions():
 # ===========================================================================
 
 def test_ui_runtime_renders_all_components_without_exception():
-    """AppTest loads streamlit_app.py, verifies header, emergency banner, action cards, and tabs."""
+    """AppTest loads streamlit_app.py, verifies header, emergency banner, action cards, and navigation."""
     st.cache_resource.clear()
     with mock.patch.dict(os.environ, {"WATSONX_API_KEY": "", "WATSONX_PROJECT_ID": ""}):
         at = AppTest.from_file(_APP_PATH, default_timeout=30)
         at.run()
 
         assert len(at.exception) == 0, f"Encountered startup exceptions: {at.exception}"
-        assert len(at.tabs) == 3
+        assert at.session_state.active_view == "scam_advisor"
 
-        # Check tab labels
-        tab_names = [t.label for t in at.tabs]
+        # Check navigation options
+        assert len(at.radio) >= 1
+        nav_radio = at.radio[0]
+        tab_names = nav_radio.options
         assert any("Scam Advisor" in n for n in tab_names)
         assert any("Loan Cost Calculator" in n for n in tab_names)
         assert any("1930 Emergency Guide" in n for n in tab_names)
@@ -118,7 +120,8 @@ def test_ui_runtime_chat_starter_execution():
                 at.run()
 
                 # Click starter 0 (QR code question)
-                at.button[0].click().run()
+                starter_btn = [b for b in at.button if b.key == "starter_0"][0]
+                starter_btn.click().run()
                 assert len(at.exception) == 0
                 assert mock_model.chat.call_count == 1
                 assert len(at.session_state.messages) == 2
@@ -139,7 +142,7 @@ def test_ui_runtime_conversation_reset():
         assert len(at.session_state.messages) == 1
 
         # Click sidebar reset button
-        reset_btns = [b for b in at.sidebar.button if "Reset Chat" in (b.label or "")]
+        reset_btns = [b for b in at.sidebar.button if "Reset" in (b.label or "")]
         assert len(reset_btns) == 1
         reset_btns[0].click().run()
 

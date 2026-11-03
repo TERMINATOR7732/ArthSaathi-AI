@@ -5,10 +5,10 @@ Digital Financial Literacy and UPI Fraud Awareness for Indian citizens.
 IBM SkillsBuild AICTE Internship 2026 · Problem Statement No. 7.
 
 Architecture & Components:
-  - 🛡️ Mission Control: Digital public safety hero, emergency banner, action entry points.
-  - 💬 AI Scam Advisor: RAG-grounded chat with live IBM Granite / offline fallback.
-  - 📊 Loan Cost Calculator: Annualized borrowing cost estimation with predatory warnings.
-  - 🚨 1930 Emergency Guide: Actionable 5-step cyber-fraud response protocol.
+  - Mission Control: Digital public safety hero, emergency banner, action entry points.
+  - AI Scam Advisor: RAG-grounded chat with live IBM Granite / offline fallback.
+  - Loan Cost Calculator: Objective annualized borrowing cost estimation and risk indicators.
+  - 1930 Emergency Guide: Actionable 5-step cyber-fraud response protocol and RBI liability framework.
 """
 
 from __future__ import annotations
@@ -28,7 +28,15 @@ from arthsaathi_agent import (
     is_greeting,
 )
 from ui import (
+    TAB_EMERGENCY_GUIDE,
+    TAB_LOAN_CALCULATOR,
+    TAB_SCAM_ADVISOR,
     TAB_TITLES,
+    VIEW_EMERGENCY_GUIDE,
+    VIEW_LOAN_CALCULATOR,
+    VIEW_MAP,
+    VIEW_SCAM_ADVISOR,
+    get_svg_icon,
     inject_ui_styles,
     render_action_cards,
     render_emergency_banner,
@@ -77,6 +85,8 @@ if "conversation_language" not in st.session_state:
     st.session_state.conversation_language = "en"
 if "last_processed_query_sig" not in st.session_state:
     st.session_state.last_processed_query_sig = None
+if "active_view" not in st.session_state:
+    st.session_state.active_view = VIEW_SCAM_ADVISOR
 
 # ---------------------------------------------------------------------------
 # Modern UI Styling & Theme Injection (via modular ui/ package)
@@ -112,10 +122,10 @@ with st.sidebar:
 
     if _llm_configured and _llm_ready:
         st.markdown(
-            '<span class="as-source-badge as-badge-granite">● Live IBM Granite 4.0</span>',
+            '<span class="as-source-badge as-badge-granite">● IBM Client Initialized</span>',
             unsafe_allow_html=True,
         )
-        st.caption("Model: `ibm/granite-4-h-small` · US South (Dallas)")
+        st.caption("Model: `ibm/granite-4-h-small` · US South (Dallas) · Inference on-demand")
     elif _llm_configured and not _llm_ready:
         st.markdown(
             '<span class="as-source-badge as-badge-warning">⚠ Init Failed · Offline Fallback</span>',
@@ -127,13 +137,13 @@ with st.sidebar:
             st.caption("SDK initialization in offline fallback mode.")
     else:
         st.markdown(
-            '<span class="as-source-badge as-badge-offline">○ Offline Knowledge Base</span>',
+            '<span class="as-source-badge as-badge-offline">○ Credentials Not Configured</span>',
             unsafe_allow_html=True,
         )
-        st.caption("Operating in offline RAG mode with curated RBI/NPCI guidelines.")
+        st.caption("Operating in offline mode with local financial reference content.")
 
     kb_count = len(orchestrator.rag.passages)
-    st.caption(f"Verified Knowledge Base: **{kb_count} passages** active.")
+    st.caption(f"Local Financial Reference Content: **{kb_count} passages** active.")
 
     # Expandable Safe Diagnostics
     render_sidebar_diagnostics(orchestrator)
@@ -179,15 +189,18 @@ with st.sidebar:
     st.markdown("---")
 
     # 24x7 Emergency Contact Box in Sidebar
+    phone_icon = get_svg_icon("phone_call", size=15, color="#DA1E28")
     st.markdown(
-        """
+        f"""
         <div class="as-emergency-banner" style="padding:0.75rem 0.9rem; margin-bottom:1rem;">
-            <strong style="color:#DA1E28; font-size:0.8rem; text-transform:uppercase; letter-spacing:0.04em;">🚨 24×7 Cybercrime Helpline</strong>
+            <strong style="color:#DA1E28; font-size:0.8rem; text-transform:uppercase; letter-spacing:0.04em;">
+                {phone_icon} 24×7 Cybercrime Helpline
+            </strong>
             <div style="margin: 0.3rem 0;">
-                <a href="tel:1930" class="as-emergency-call-btn" style="padding:0.35rem 0.8rem; font-size:0.95rem;">📞 Call 1930</a>
+                <a href="tel:1930" class="as-emergency-call-btn" style="padding:0.35rem 0.8rem; font-size:0.95rem;">Call 1930</a>
             </div>
             <p style="font-size:0.78rem; margin:0; line-height:1.35; color:#1E293B;">
-                Automated fund-freeze across 400+ banks via CFCFRMS.
+                Report immediately. Prompt reporting helps authorities take timely action. Fund freeze or refund is not guaranteed.
             </p>
         </div>
         """,
@@ -198,7 +211,7 @@ with st.sidebar:
     render_official_portals()
 
     # Chat reset button
-    if st.button("🗑️ Reset Chat Conversation", use_container_width=True):
+    if st.button("Reset Conversation", use_container_width=True):
         st.session_state.messages = []
         st.session_state.conversation_language = "en"
         st.session_state.last_processed_query_sig = None
@@ -216,16 +229,32 @@ render_action_cards()
 st.markdown("<div style='margin-top: 1.25rem;'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Navigation Tabs
+# State-Driven Navigation
 # ---------------------------------------------------------------------------
 
-tab_chat, tab_calc, tab_emergency = st.tabs(TAB_TITLES)
+current_nav_label = VIEW_MAP.get(st.session_state.active_view, TAB_SCAM_ADVISOR)
+selected_nav_label = st.radio(
+    "Navigation Views",
+    options=TAB_TITLES,
+    index=TAB_TITLES.index(current_nav_label) if current_nav_label in TAB_TITLES else 0,
+    horizontal=True,
+    label_visibility="collapsed",
+    key="main_navigation_selector",
+)
+
+# Synchronize active_view if user directly toggles the radio control
+for v_key, v_title in VIEW_MAP.items():
+    if v_title == selected_nav_label and st.session_state.active_view != v_key:
+        st.session_state.active_view = v_key
+        st.rerun()
+
+st.markdown("<div style='margin-top: 0.8rem;'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# SCREEN 2 / TAB 1: AI Scam Advisor
+# SCREEN 2: AI Scam Advisor
 # ---------------------------------------------------------------------------
 
-with tab_chat:
+if st.session_state.active_view == VIEW_SCAM_ADVISOR:
     st.markdown(
         """
         <div style="margin-bottom: 0.8rem;">
@@ -241,8 +270,8 @@ with tab_chat:
     # Offline banner if LLM not configured
     if not (orchestrator.llm_configured and orchestrator.llm_ready):
         st.info(
-            "ℹ️ **Offline Mode**: IBM Granite credentials are not configured or connecting. "
-            "ArthSaathi is serving verified answers directly from the local RBI/NPCI knowledge base."
+            "**Offline Mode**: IBM Granite credentials are not configured or connecting. "
+            "ArthSaathi is serving verified answers directly from local financial reference content."
         )
 
     # Display Chat History or Empty State Starter Questions
@@ -273,7 +302,7 @@ with tab_chat:
         for idx, (q, desc) in enumerate(starters):
             target_col = col1 if idx % 2 == 0 else col2
             with target_col:
-                if st.button(f"🔍 {q}", key=f"starter_{idx}", use_container_width=True):
+                if st.button(q, key=f"starter_{idx}", use_container_width=True):
                     st.session_state.pending_prompt = q
                     st.rerun()
 
@@ -289,53 +318,59 @@ with tab_chat:
             st.markdown(msg["content"])
 
             if msg.get("passages"):
-                with st.expander("📚 Knowledge Base Citations", expanded=False):
+                with st.expander("Reference Material Citations", expanded=False):
                     for p in msg["passages"]:
                         st.markdown(f"**Passage:** `{p['id']}`")
                         st.caption(p["text"])
 
             if msg.get("latency_ms"):
-                lat = msg["latency_ms"]
                 st.caption(
-                    f"⏱️ Retrieval: {lat.get('retrieval', 0.0)}ms | Provider: {lat.get('provider', 0.0)}ms | Total: {lat.get('total', 0.0)}ms"
+                    f"Latency — Retrieval: {msg['latency_ms'].get('retrieval', 0.0)}ms | "
+                    f"Provider: {msg['latency_ms'].get('provider', 0.0)}ms | "
+                    f"Total: {msg['latency_ms'].get('total', 0.0)}ms"
                 )
 
-    # Check for pending prompt from starter button
-    user_query = None
+    # Handle pending starter prompt if clicked
+    prompt_to_process = None
     if "pending_prompt" in st.session_state and st.session_state.pending_prompt:
-        user_query = st.session_state.pending_prompt
-        del st.session_state.pending_prompt
-    else:
-        user_query = st.chat_input(
-            "Ask about UPI safety, suspicious SMS, loan apps, or government schemes…",
-            max_chars=1000,
-            disabled=st.session_state.is_processing,
-        )
+        prompt_to_process = st.session_state.pending_prompt
+        st.session_state.pending_prompt = None
 
-    # Process query
-    if user_query and user_query.strip():
-        clean_query = user_query.strip()
+    # Chat input widget
+    user_input = st.chat_input(
+        "Ask about UPI security, suspicious payment requests, or loan offers...",
+        disabled=st.session_state.is_processing,
+    )
+
+    active_prompt = prompt_to_process or user_input
+
+    if active_prompt and not st.session_state.is_processing:
+        clean_query = active_prompt.strip()
         query_sig = f"{clean_query}:{len(st.session_state.messages)}"
-        if st.session_state.get("last_processed_query_sig") != query_sig:
-            st.session_state.last_processed_query_sig = query_sig
-            st.session_state.is_processing = True
-            try:
-                st.session_state.messages.append({
-                    "role": "user",
-                    "content": clean_query,
-                })
 
-                lang_pref_map = {
-                    "Auto-detect": "auto",
-                    "English": "en",
-                    "हिन्दी (Hindi)": "hi",
-                    "मराठी (Marathi)": "mr",
-                    "Hinglish": "hinglish",
-                }
-                manual_lang = lang_pref_map.get(st.session_state.language_preference, "auto")
-                if manual_lang != "auto":
-                    target_lang = manual_lang
-                    st.session_state.conversation_language = manual_lang
+        if query_sig != st.session_state.last_processed_query_sig:
+            st.session_state.is_processing = True
+            st.session_state.last_processed_query_sig = query_sig
+
+            st.session_state.messages.append({
+                "role": "user",
+                "content": clean_query,
+            })
+
+            with st.chat_message("user"):
+                st.markdown(clean_query)
+
+            try:
+                # Multilingual detection & routing
+                pref = st.session_state.language_preference
+                if pref == "English":
+                    target_lang = "en"
+                elif pref == "हिन्दी (Hindi)":
+                    target_lang = "hi"
+                elif pref == "मराठी (Marathi)":
+                    target_lang = "mr"
+                elif pref == "Hinglish":
+                    target_lang = "hinglish"
                 else:
                     detected = detect_language(clean_query)
                     greeting_flag, _ = is_greeting(clean_query)
@@ -347,7 +382,7 @@ with tab_chat:
                         st.session_state.conversation_language = detected
 
                 with st.chat_message("assistant"):
-                    with st.spinner("Analyzing with RBI/NPCI knowledge base & IBM Granite..."):
+                    with st.spinner("Analyzing with financial reference content & IBM Granite..."):
                         response = orchestrator.answer(clean_query, target_lang=target_lang)
 
                     render_source_badge(response.source, response.model_id)
@@ -356,14 +391,14 @@ with tab_chat:
 
                     passage_data = [{"id": p.id, "text": p.text[:400]} for p in response.passages]
                     if passage_data:
-                        with st.expander("📚 Knowledge Base Citations", expanded=False):
+                        with st.expander("Reference Material Citations", expanded=False):
                             for p in passage_data:
                                 st.markdown(f"**Passage:** `{p['id']}`")
                                 st.caption(p["text"])
 
                     if response.latency_ms:
                         st.caption(
-                            f"⏱️ Retrieval: {response.latency_ms.get('retrieval', 0.0)}ms | "
+                            f"Latency — Retrieval: {response.latency_ms.get('retrieval', 0.0)}ms | "
                             f"Provider: {response.latency_ms.get('provider', 0.0)}ms | "
                             f"Total: {response.latency_ms.get('total', 0.0)}ms"
                         )
@@ -386,16 +421,16 @@ with tab_chat:
 
 
 # ---------------------------------------------------------------------------
-# SCREEN 3 / TAB 2: Loan Cost Calculator
+# SCREEN 3: Loan Cost Calculator
 # ---------------------------------------------------------------------------
 
-with tab_calc:
+elif st.session_state.active_view == VIEW_LOAN_CALCULATOR:
     st.markdown(
         """
         <div style="margin-bottom: 0.8rem;">
-            <h2 style="margin:0; font-size:1.35rem; font-weight:700;">Simplified Loan Cost & APR Calculator</h2>
+            <h2 style="margin:0; font-size:1.35rem; font-weight:700;">Objective Loan Cost & Annualized Rate Calculator</h2>
             <p style="color:#64748B; font-size:0.9rem; margin:0.2rem 0 0.8rem 0;">
-                Compute the annualized borrowing cost of short-term lending offers to detect predatory terms.
+                Compute the true borrowing cost, net disbursement, and effective annualized rate to evaluate digital credit offers objectively.
             </p>
         </div>
         """,
@@ -408,12 +443,20 @@ with tab_calc:
         with st.form("loan_calculator_form"):
             st.markdown("**Loan Parameters**")
             principal = st.number_input(
-                "Loan Amount Disbursed (Principal ₹)",
+                "Sanctioned Loan Amount (Principal ₹)",
                 min_value=1.0,
                 max_value=100000000.0,
                 value=10000.0,
                 step=500.0,
-                help="The exact amount of cash disbursed to you.",
+                help="The gross loan amount sanctioned by the lender in the loan agreement.",
+            )
+            upfront_fees = st.number_input(
+                "Upfront Processing Fees & Deductions (₹)",
+                min_value=0.0,
+                max_value=99999999.0,
+                value=500.0,
+                step=100.0,
+                help="Fees, charges, or insurance deducted upfront before disbursing funds to your account.",
             )
             repayment = st.number_input(
                 "Total Amount to Repay (₹)",
@@ -421,7 +464,7 @@ with tab_calc:
                 max_value=100000000.0,
                 value=12500.0,
                 step=500.0,
-                help="Total amount due, including processing fees, charges, and interest.",
+                help="Total amount due across all scheduled repayments, including interest and fees.",
             )
             tenure_days = st.number_input(
                 "Loan Tenure (Days)",
@@ -429,7 +472,7 @@ with tab_calc:
                 max_value=36500,
                 value=15,
                 step=1,
-                help="Number of days until the full amount must be repaid.",
+                help="Total repayment duration in calendar days.",
             )
 
             calc_submitted = st.form_submit_button("Calculate Annualized Cost", use_container_width=True)
@@ -439,6 +482,7 @@ with tab_calc:
             principal=principal,
             total_repayment=repayment,
             tenure_days=int(tenure_days),
+            upfront_fees=upfront_fees,
         )
 
         if not calc_result["valid"]:
@@ -446,54 +490,53 @@ with tab_calc:
                 st.error(f"⚠️ {err}")
         else:
             annual_cost = calc_result["annualized_cost_pct"]
-            is_predatory = calc_result["is_predatory"]
-            net_borrowing_cost = repayment - principal
+            net_disbursed = calc_result["net_disbursed"]
+            total_borrowing_cost = calc_result["total_borrowing_cost"]
 
             st.markdown("### Calculation Summary")
             m_c1, m_c2 = st.columns(2)
             with m_c1:
                 st.metric(
-                    label="Estimated Annualized Cost (APR)",
-                    value=f"{annual_cost:,.2f}%",
-                    delta=f"+{annual_cost - 36.0:.1f}% vs 36% indicator benchmark" if annual_cost > 36.0 else "Within commercial lending benchmarks",
-                    delta_color="inverse" if annual_cost > 36.0 else "normal",
+                    label="Gross Sanctioned",
+                    value=f"₹{principal:,.2f}",
                 )
             with m_c2:
                 st.metric(
-                    label="Total Borrowing Cost",
-                    value=f"₹{net_borrowing_cost:,.2f}",
-                    delta=f"{(net_borrowing_cost/principal)*100:.1f}% total fee",
+                    label="Net Disbursed to You",
+                    value=f"₹{net_disbursed:,.2f}",
+                    delta=f"-₹{upfront_fees:,.2f} upfront fee" if upfront_fees > 0 else "No upfront fee",
                     delta_color="off",
                 )
 
-            if is_predatory:
+            m_c3, m_c4 = st.columns(2)
+            with m_c3:
+                st.metric(
+                    label="Total Repayment",
+                    value=f"₹{repayment:,.2f}",
+                )
+            with m_c4:
+                st.metric(
+                    label="Estimated Annualized Cost",
+                    value=f"{annual_cost:,.2f}%",
+                    help="Simplified annualized rate based on effective borrowing period.",
+                )
+
+            st.info(f"**Borrowing Cost Assessment:** {calc_result['cost_explanation']}")
+
+            with st.expander("RBI Digital Lending Due Diligence Checklist", expanded=True):
+                st.markdown("**Verify these screening indicators before accepting any digital loan:**")
+                for indicator in calc_result["risk_indicators"]:
+                    st.markdown(f"- {indicator}")
                 st.markdown(
-                    f"""
-                    <div class="as-fraud-box" style="margin-top:0.8rem;">
-                        <strong>⚠️ WARNING: Potential Predatory Lending Term ({annual_cost:.1f}% Annualized)</strong>
-                        <p style="margin:0.3rem 0 0 0; font-size:0.85rem; line-height:1.4;">
-                            Under RBI Fair Practices Code principles, annual borrowing costs exceeding <strong>36%</strong>
-                            frequently indicate predatory short-tenure lending. Many unauthorized digital lending apps disburse 7-day
-                            loans with massive hidden fees.
-                        </p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-                st.warning(
-                    "Before accepting this loan, verify whether the lending entity is registered on the official RBI Sachet Portal: "
-                    "[sachet.rbi.org.in](https://sachet.rbi.org.in)."
-                )
-            else:
-                st.success(
-                    f"✅ The annualized borrowing cost ({annual_cost:.1f}%) is within standard commercial lending benchmarks (≤ 36%)."
+                    "Always demand a **Key Fact Statement (KFS)** and verify the lending entity on the official "
+                    "[RBI Sachet Portal (sachet.rbi.org.in)](https://sachet.rbi.org.in)."
                 )
 
             st.markdown(
                 """
                 <div style="font-size:0.8rem; color:#64748B; margin-top:1rem; border-top:1px solid #E2E8F0; padding-top:0.6rem;">
                     <strong>Calculation formula:</strong> <code>((Repayment − Principal) / Principal) × (365 / Days) × 100</code><br>
-                    <em>Disclaimer: This calculation provides an annualized estimate and does not replace the legally defined APR required in loan sanction letters under the RBI Fair Practices Code (DOR.STR.REC.68/21.04.048/2023-24). Always demand a Key Fact Statement (KFS) before borrowing.</em>
+                    <em>Disclaimer: This calculation provides a simplified annualized borrowing cost estimate for educational comparison. It does not replace the legally defined APR required in the standardized Key Fact Statement (KFS) under RBI Digital Lending Guidelines (DOR.CRE.REC.66/21.07.001/2022-23). The Reserve Bank of India does not set an arbitrary universal 36% APR legal ceiling; lenders must provide transparent upfront disclosure of all fees and charges.</em>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -501,16 +544,16 @@ with tab_calc:
 
 
 # ---------------------------------------------------------------------------
-# SCREEN 4 / TAB 3: 1930 Emergency Guide
+# SCREEN 4: 1930 Emergency Guide
 # ---------------------------------------------------------------------------
 
-with tab_emergency:
+elif st.session_state.active_view == VIEW_EMERGENCY_GUIDE:
     st.markdown(
         """
         <div style="margin-bottom: 0.8rem;">
             <h2 style="margin:0; font-size:1.35rem; font-weight:700;">Immediate Financial Fraud Escalation Protocol</h2>
             <p style="color:#64748B; font-size:0.9rem; margin:0.2rem 0 0.8rem 0;">
-                If you have been scammed or noticed unauthorized transactions, take these steps immediately. The golden hour is critical.
+                If you have been scammed or noticed unauthorized transactions, take these steps immediately. Prompt reporting is critical.
             </p>
         </div>
         """,
@@ -518,16 +561,20 @@ with tab_emergency:
     )
 
     steps = [
-        ("Step 1 — Call 1930 Immediately (National Cybercrime Helpline)",
-         "The **National Cybercrime Helpline (1930)** operates 24×7. Calling immediately triggers the Citizen Financial Cyber Fraud Reporting & Management System (CFCFRMS), coordinating freeze protocols across 400+ connected banks before funds are withdrawn."),
+        ("Step 1 — Call 1930 Immediately (National Cyber Financial Fraud Helpline)",
+         "The **National Cyber Financial Fraud Helpline (1930)** operates 24×7 under the Ministry of Home Affairs / I4C. Calling promptly enables the Citizen Financial Cyber Fraud Reporting & Management System (CFCFRMS) to alert concerned banks and authorities to take timely action. *Note: I4C does not itself freeze accounts; fund freezing and recovery decisions rest with concerned financial institutions and investigating authorities under applicable law. A fund freeze, recovery, or refund is not guaranteed.*"),
         ("Step 2 — File a Complaint Online at cybercrime.gov.in",
-         "Visit the official [National Cyber Crime Reporting Portal](https://cybercrime.gov.in). Submit transaction IDs, SMS alerts, UPI reference numbers (UTR), and screenshots as evidence."),
-        ("Step 3 — Block Your Cards and UPI Accounts Immediately",
-         "Use your mobile banking app, net banking, or call your bank's toll-free emergency number to disable your UPI ID and block your debit/credit cards."),
-        ("Step 4 — Notify Your Bank in Writing Within 3 Working Days",
-         "Under the RBI Zero-Liability Circular (DBR.No.Leg.BC.78/09.07.005/2017-18), notifying your bank within 3 working days of an unauthorized transaction protects your entitlement to reimbursement. Note: outcomes depend on individual bank policies and specific circumstances; obtain a formal written acknowledgement."),
+         "Visit the official [National Cyber Crime Reporting Portal](https://cybercrime.gov.in). Submit transaction reference IDs (UTR), SMS debit alerts, beneficiary account/UPI details, and payment screenshots. Retain the formal acknowledgement number for reference."),
+        ("Step 3 — Block Compromised Cards and UPI Access Immediately",
+         "Use your bank's mobile application, net banking portal, or call the 24×7 customer care number on the back of your card to freeze compromised accounts, block payment cards, and disable UPI access."),
+        ("Step 4 — Notify Your Bank Immediately in Writing",
+         "Under the RBI Customer Liability Framework (Circular DBR.No.Leg.BC.78/09.07.005/2017-18):\n\n"
+         "- **Bank Negligence or Deficiency:** Zero customer liability where the deficiency lies with the bank, regardless of when reported.\n"
+         "- **Third-Party Breach:** Zero customer liability if reported within 3 working days of receiving bank communication. If reported within 4 to 7 working days, liability is limited according to RBI transaction slabs. Beyond 7 working days, the bank's board-approved policy governs.\n"
+         "- **Customer Negligence:** If loss occurred due to sharing payment credentials (such as OTP, UPI PIN, or passwords), the customer bears the entire loss until reported to the bank; unauthorized transactions occurring after reporting are borne by the bank.\n\n"
+         "*Always report immediately — do not delay. Refunds are not automatically guaranteed.*"),
         ("Step 5 — Preserve All Digital & Transaction Evidence",
-         "Do not delete fraudulent SMS alerts, call recordings, WhatsApp messages, or payment receipts. Law enforcement and cybercrime units require these records for formal investigation."),
+         "Do not delete fraudulent SMS alerts, call logs, WhatsApp messages, APK files, or payment receipts. Investigating agencies and bank dispute resolution desks require these digital records for formal verification."),
     ]
 
     for title, desc in steps:
@@ -544,8 +591,8 @@ with tab_emergency:
     st.markdown("### Official Redressal Directory")
     contact_data = {
         "Agency / Portal": [
-            "National Cybercrime Helpline",
-            "National Cybercrime Portal",
+            "National Cyber Financial Fraud Helpline",
+            "National Cybercrime Reporting Portal",
             "RBI Integrated Banking Ombudsman",
             "RBI Ombudsman Helpline",
             "NPCI UPI Dispute Resolution",
@@ -560,17 +607,17 @@ with tab_emergency:
             "sachet.rbi.org.in",
         ],
         "Purpose": [
-            "Emergency fund freeze on 400+ banks",
-            "Official police FIR & cyber complaint",
+            "Immediate alert to banks & intermediaries via CFCFRMS",
+            "Official cybercrime complaint & evidence filing",
             "Bank grievance escalation (if unresolved > 30 days)",
             "Guidance on banking consumer rights",
             "UPI transaction dispute redressal",
-            "Check if lending apps have legal RBI licenses",
+            "Verify registered NBFCs and report illegal lending apps",
         ],
     }
     st.table(contact_data)
 
     st.caption(
-        "Disclaimer: ArthSaathi AI provides educational guidance based on official RBI, NPCI, and Ministry of Home Affairs rules. "
+        "Disclaimer: ArthSaathi AI provides educational guidance based on official RBI, NPCI, and Ministry of Home Affairs guidelines. "
         "It does not constitute formal legal counsel. For ongoing criminal investigations, always coordinate directly with local law enforcement."
     )
