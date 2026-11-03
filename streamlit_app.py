@@ -4,7 +4,8 @@ streamlit_app.py — ArthSaathi AI Streamlit Application.
 Digital Financial Literacy and UPI Fraud Awareness for Indian citizens.
 IBM SkillsBuild AICTE Internship 2026 · Problem Statement No. 7.
 
-Components:
+Architecture & Components:
+  - 🛡️ Mission Control: Digital public safety hero, emergency banner, action entry points.
   - 💬 AI Scam Advisor: RAG-grounded chat with live IBM Granite / offline fallback.
   - 📊 Loan Cost Calculator: Annualized borrowing cost estimation with predatory warnings.
   - 🚨 1930 Emergency Guide: Actionable 5-step cyber-fraud response protocol.
@@ -25,6 +26,17 @@ from arthsaathi_agent import (
     get_config_var,
     get_deterministic_greeting,
     is_greeting,
+)
+from ui import (
+    TAB_TITLES,
+    inject_ui_styles,
+    render_action_cards,
+    render_emergency_banner,
+    render_fraud_alerts,
+    render_header,
+    render_official_portals,
+    render_sidebar_diagnostics,
+    render_source_badge,
 )
 
 # ---------------------------------------------------------------------------
@@ -63,133 +75,27 @@ if "language_preference" not in st.session_state:
     st.session_state.language_preference = "Auto-detect"
 if "conversation_language" not in st.session_state:
     st.session_state.conversation_language = "en"
+if "last_processed_query_sig" not in st.session_state:
+    st.session_state.last_processed_query_sig = None
 
 # ---------------------------------------------------------------------------
-# Styling and Theme Injection
+# Modern UI Styling & Theme Injection (via modular ui/ package)
 # ---------------------------------------------------------------------------
 
-def apply_custom_styles(theme: str) -> None:
-    """Inject editorial finance styles adapted for Light or Dark theme."""
-    if theme == "Dark":
-        bg_card = "#161E2E"
-        bg_card_alt = "#1F2937"
-        text_primary = "#F3F4F6"
-        text_secondary = "#9CA3AF"
-        border_color = "#374151"
-        banner_bg = "#1E293B"
-        badge_bg = "#2A374A"
-    else:  # Light
-        bg_card = "#FFFFFF"
-        bg_card_alt = "#F8FAFC"
-        text_primary = "#0F172A"
-        text_secondary = "#475569"
-        border_color = "#E2E8F0"
-        banner_bg = "#F1F5F9"
-        badge_bg = "#E2E8F0"
-
-    custom_css = f"""
-    <style>
-    /* Editorial header & card styling */
-    .app-brand-title {{
-        font-size: 1.65rem;
-        font-weight: 700;
-        letter-spacing: -0.02em;
-        margin: 0;
-        padding-bottom: 0.15rem;
-    }}
-    .app-brand-subtitle {{
-        font-size: 0.9rem;
-        color: {text_secondary};
-        margin: 0;
-        padding-bottom: 0.8rem;
-    }}
-    .editorial-card {{
-        background-color: {bg_card};
-        border: 1px solid {border_color};
-        border-radius: 8px;
-        padding: 1.15rem 1.25rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    }}
-    .emergency-card-critical {{
-        background-color: {banner_bg};
-        border-left: 5px solid #DC2626;
-        border-radius: 6px;
-        padding: 1rem 1.25rem;
-        margin-bottom: 1.2rem;
-    }}
-    .status-pill {{
-        display: inline-block;
-        font-size: 0.75rem;
-        font-weight: 600;
-        padding: 0.2rem 0.55rem;
-        border-radius: 9999px;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-    }}
-    .status-live {{
-        background-color: #DCFCE7;
-        color: #166534;
-        border: 1px solid #86EFAC;
-    }}
-    .status-offline {{
-        background-color: #FEF3C7;
-        color: #92400E;
-        border: 1px solid #FCD34D;
-    }}
-    .fraud-alert-box {{
-        background-color: #FEF2F2;
-        border: 1px solid #FCA5A5;
-        border-left: 4px solid #DC2626;
-        color: #991B1B;
-        padding: 0.75rem 1rem;
-        border-radius: 6px;
-        margin-bottom: 0.6rem;
-        font-size: 0.9rem;
-    }}
-    .source-badge {{
-        font-size: 0.75rem;
-        font-weight: 600;
-        padding: 0.15rem 0.5rem;
-        border-radius: 4px;
-        background-color: {badge_bg};
-        color: {text_primary};
-        display: inline-block;
-        margin-bottom: 0.4rem;
-    }}
-    .call-btn-link {{
-        display: inline-block;
-        background-color: #DC2626;
-        color: white !important;
-        font-weight: 700;
-        font-size: 1.1rem;
-        padding: 0.5rem 1.2rem;
-        border-radius: 6px;
-        text-decoration: none;
-        margin: 0.4rem 0;
-    }}
-    .call-btn-link:hover {{
-        background-color: #B91C1C;
-        text-decoration: none;
-    }}
-    </style>
-    """
-    st.markdown(custom_css, unsafe_allow_html=True)
-
-apply_custom_styles(st.session_state.theme_mode)
+inject_ui_styles(st.session_state.theme_mode)
 
 # ---------------------------------------------------------------------------
-# Sidebar: System Diagnostics, Controls & Safe Links
+# Sidebar: Brand, System Diagnostics, Controls & Safe Links
 # ---------------------------------------------------------------------------
 
 with st.sidebar:
     st.markdown(
         """
         <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.4rem;">
-            <div style="font-size:1.8rem; font-weight:800; color:#1B365D; line-height:1;">₹</div>
+            <div style="font-size:1.8rem; font-weight:800; color:#0F62FE; line-height:1;">₹</div>
             <div>
-                <h2 class="app-brand-title">ArthSaathi AI</h2>
-                <div class="app-brand-subtitle">Financial Literacy & Fraud Shield</div>
+                <h2 style="font-size:1.45rem; font-weight:800; margin:0; line-height:1.2; letter-spacing:-0.02em;">ArthSaathi AI</h2>
+                <div style="font-size:0.82rem; color:#64748B; margin:0;">Understand · Verify · Protect</div>
             </div>
         </div>
         """,
@@ -202,41 +108,35 @@ with st.sidebar:
     st.subheader("System Status")
     _llm_configured = orchestrator.llm_configured
     _llm_ready = orchestrator.llm_ready
-    # llm_init_error is set as an instance attribute in ArthSaathiOrchestrator.__init__.
-    # getattr is used here solely as a safety net for the @st.cache_resource boundary:
-    # if a cached orchestrator instance was created by an older class version (hot-reload
-    # timing window), the attribute will be absent and None is the correct fallback.
     _llm_init_error: Optional[str] = getattr(orchestrator, "llm_init_error", None)
 
     if _llm_configured and _llm_ready:
-        # Credentials present and SDK initialized successfully.
         st.markdown(
-            '<span class="status-pill status-live">● IBM Granite Live</span>',
+            '<span class="as-source-badge as-badge-granite">● Live IBM Granite 4.0</span>',
             unsafe_allow_html=True,
         )
-        st.caption("Model: `ibm/granite-4-h-small` | 24×7 Active")
+        st.caption("Model: `ibm/granite-4-h-small` · US South (Dallas)")
     elif _llm_configured and not _llm_ready:
-        # Credentials were present but SDK initialization failed.
         st.markdown(
-            '<span class="status-pill status-offline">⚠ Init Failed — Offline Fallback</span>',
+            '<span class="as-source-badge as-badge-warning">⚠ Init Failed · Offline Fallback</span>',
             unsafe_allow_html=True,
         )
         if _llm_init_error:
-            # _llm_init_error holds only the exception class name (e.g. "ImportError"),
-            # never raw exception text, auth headers, or tokens.
-            st.caption(f"SDK init error: `{_llm_init_error}`. Check Streamlit logs for details.")
+            st.caption(f"SDK init note: `{_llm_init_error}`. Safe offline mode active.")
         else:
-            st.caption("SDK initialization did not complete. Check Streamlit logs.")
+            st.caption("SDK initialization in offline fallback mode.")
     else:
-        # Credentials not configured at all.
         st.markdown(
-            '<span class="status-pill status-offline">○ Offline Knowledge Base</span>',
+            '<span class="as-source-badge as-badge-offline">○ Offline Knowledge Base</span>',
             unsafe_allow_html=True,
         )
         st.caption("Operating in offline RAG mode with curated RBI/NPCI guidelines.")
 
     kb_count = len(orchestrator.rag.passages)
-    st.caption(f"Knowledge Base: **{kb_count} passages** loaded and indexed.")
+    st.caption(f"Verified Knowledge Base: **{kb_count} passages** active.")
+
+    # Expandable Safe Diagnostics
+    render_sidebar_diagnostics(orchestrator)
 
     st.markdown("---")
 
@@ -249,7 +149,11 @@ with st.sidebar:
         "मराठी (Marathi)",
         "Hinglish",
     ]
-    current_lang_idx = lang_options.index(st.session_state.language_preference) if st.session_state.language_preference in lang_options else 0
+    current_lang_idx = (
+        lang_options.index(st.session_state.language_preference)
+        if st.session_state.language_preference in lang_options
+        else 0
+    )
     selected_lang = st.selectbox(
         "Response Language",
         options=lang_options,
@@ -274,64 +178,60 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # 24x7 Emergency Contact Box
+    # 24x7 Emergency Contact Box in Sidebar
     st.markdown(
         """
-        <div class="emergency-card-critical">
-            <strong style="color:#DC2626; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.05em;">🚨 24×7 Cybercrime Helpline</strong>
-            <div style="margin: 0.4rem 0;">
-                <a href="tel:1930" class="call-btn-link">📞 Call 1930</a>
+        <div class="as-emergency-banner" style="padding:0.75rem 0.9rem; margin-bottom:1rem;">
+            <strong style="color:#DA1E28; font-size:0.8rem; text-transform:uppercase; letter-spacing:0.04em;">🚨 24×7 Cybercrime Helpline</strong>
+            <div style="margin: 0.3rem 0;">
+                <a href="tel:1930" class="as-emergency-call-btn" style="padding:0.35rem 0.8rem; font-size:0.95rem;">📞 Call 1930</a>
             </div>
-            <p style="font-size:0.82rem; margin:0; line-height:1.4;">
-                Triggers automated fund freezing across 400+ banks via CFCFRMS.
+            <p style="font-size:0.78rem; margin:0; line-height:1.35; color:#1E293B;">
+                Automated fund-freeze across 400+ banks via CFCFRMS.
             </p>
-            <div style="font-size:0.82rem; margin-top:0.4rem;">
-                RBI Ombudsman: <a href="tel:14448"><strong>14448</strong></a> (Toll-free)
-            </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
     # Official verification portals
-    with st.expander("Official Verification Portals", expanded=False):
-        st.markdown(
-            """
-            - [cybercrime.gov.in](https://cybercrime.gov.in) — National Cybercrime Reporting Portal
-            - [sachet.rbi.org.in](https://sachet.rbi.org.in) — Verify RBI-registered lenders
-            - [cms.rbi.org.in](https://cms.rbi.org.in) — RBI Ombudsman complaint filing
-            - [npci.org.in](https://www.npci.org.in) — Official NPCI UPI guidelines
-            """
-        )
+    render_official_portals()
 
     # Chat reset button
     if st.button("🗑️ Reset Chat Conversation", use_container_width=True):
         st.session_state.messages = []
         st.session_state.conversation_language = "en"
+        st.session_state.last_processed_query_sig = None
         st.rerun()
 
+
+# ---------------------------------------------------------------------------
+# SCREEN 1: Mission Control Hero & Immediate Escalation
+# ---------------------------------------------------------------------------
+
+render_header(st.session_state.conversation_language)
+render_emergency_banner()
+render_action_cards()
+
+st.markdown("<div style='margin-top: 1.25rem;'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
 # Navigation Tabs
 # ---------------------------------------------------------------------------
 
-tab_chat, tab_calc, tab_emergency = st.tabs([
-    "💬 AI Scam Advisor",
-    "📊 Loan Cost Calculator",
-    "🚨 1930 Emergency Guide",
-])
+tab_chat, tab_calc, tab_emergency = st.tabs(TAB_TITLES)
 
 # ---------------------------------------------------------------------------
-# TAB 1: AI Scam Advisor
+# SCREEN 2 / TAB 1: AI Scam Advisor
 # ---------------------------------------------------------------------------
 
 with tab_chat:
     st.markdown(
         """
         <div style="margin-bottom: 0.8rem;">
-            <h2 style="margin:0; font-size:1.4rem; font-weight:700;">Digital Financial Literacy & Scam Advisor</h2>
-            <p style="color:#64748B; font-size:0.92rem; margin:0.2rem 0 0.8rem 0;">
-                Grounded in official RBI and NPCI guidelines. Check suspicious UPI payments, verify loan offers, or learn your rights.
+            <h2 style="margin:0; font-size:1.35rem; font-weight:700;">Digital Financial Literacy & Scam Advisor</h2>
+            <p style="color:#64748B; font-size:0.9rem; margin:0.2rem 0 0.8rem 0;">
+                Grounded in official RBI and NPCI guidelines. Check suspicious UPI payments, verify loan offers, or learn your consumer rights.
             </p>
         </div>
         """,
@@ -345,15 +245,17 @@ with tab_chat:
             "ArthSaathi is serving verified answers directly from the local RBI/NPCI knowledge base."
         )
 
-    # Display Chat History
+    # Display Chat History or Empty State Starter Questions
     if not st.session_state.messages:
-        # Seed message
+        # Seed welcome message
         st.markdown(
             """
-            <div class="editorial-card">
-                <strong>Namaste! I am ArthSaathi, your digital financial safety assistant.</strong><br>
-                Ask me about UPI safety rules, suspicious payment requests, loan apps, or banking consumer rights.
-                <em>You can communicate in English, Hindi (हिन्दी), Marathi (मराठी), or Hinglish.</em>
+            <div class="as-header-card" style="margin-bottom: 0.8rem; border-left: 4px solid #0F62FE;">
+                <h4 style="margin:0 0 0.3rem 0; font-size:1.05rem; font-weight:700;">Namaste! I am ArthSaathi, your digital financial safety assistant.</h4>
+                <p style="margin:0 0 0.4rem 0; font-size:0.9rem; color:#475569;">
+                    Ask me about UPI security rules, suspicious payment requests, digital loan apps, or banking consumer rights.
+                </p>
+                <em style="font-size:0.85rem; color:#64748B;">You can communicate in English, Hindi (हिन्दी), Marathi (मराठी), or Hinglish.</em>
             </div>
             """,
             unsafe_allow_html=True,
@@ -362,10 +264,10 @@ with tab_chat:
         st.markdown("**Suggested questions to get started:**")
         col1, col2 = st.columns(2)
         starters = [
-            ("How can I identify a UPI payment scam?", "Recognize fake collect requests and phishing."),
-            ("Can someone send me money by asking me to scan a QR code?", "The #1 marketplace scam explained."),
-            ("Is this loan offer suspicious?", "Identify predatory interest rates and fake NBFCs."),
-            ("How do I report a financial cybercrime?", "Step-by-step CFCFRMS protocol and 1930 helpline."),
+            ("Someone asked me to scan a QR code to receive money.", "The #1 marketplace payment scam explained."),
+            ("How do I identify a UPI collect request scam?", "Recognize fake collect requests and phishing."),
+            ("I received a suspicious part-time job offer.", "Identify task scams and illegal account mule traps."),
+            ("How do I report unauthorized UPI transactions?", "Step-by-step CFCFRMS protocol and 1930 helpline."),
         ]
 
         for idx, (q, desc) in enumerate(starters):
@@ -378,34 +280,20 @@ with tab_chat:
     # Render conversation
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
-            # Display source tag if assistant
             if msg["role"] == "assistant" and "source" in msg:
-                src = msg["source"]
-                if src == "granite":
-                    st.markdown('<span class="source-badge">Live IBM Granite</span>', unsafe_allow_html=True)
-                elif src == "offline_kb":
-                    st.markdown('<span class="source-badge">Offline Knowledge Base</span>', unsafe_allow_html=True)
-                elif src == "not_configured":
-                    st.markdown('<span class="source-badge">Offline Knowledge Base (Credentials not set)</span>', unsafe_allow_html=True)
-                else:
-                    st.markdown(f'<span class="source-badge">{html.escape(src)}</span>', unsafe_allow_html=True)
+                render_source_badge(msg["source"], msg.get("model_id"))
 
-            # Display any fraud alerts
             if msg.get("fraud_alerts"):
-                for alert in msg["fraud_alerts"]:
-                    st.markdown(f'<div class="fraud-alert-box">{html.escape(alert)}</div>', unsafe_allow_html=True)
+                render_fraud_alerts(msg["fraud_alerts"])
 
-            # Display answer content
             st.markdown(msg["content"])
 
-            # Collapsible passages
             if msg.get("passages"):
                 with st.expander("📚 Knowledge Base Citations", expanded=False):
                     for p in msg["passages"]:
                         st.markdown(f"**Passage:** `{p['id']}`")
                         st.caption(p["text"])
 
-            # Latency footer
             if msg.get("latency_ms"):
                 lat = msg["latency_ms"]
                 st.caption(
@@ -427,97 +315,87 @@ with tab_chat:
     # Process query
     if user_query and user_query.strip():
         clean_query = user_query.strip()
-        st.session_state.is_processing = True
+        query_sig = f"{clean_query}:{len(st.session_state.messages)}"
+        if st.session_state.get("last_processed_query_sig") != query_sig:
+            st.session_state.last_processed_query_sig = query_sig
+            st.session_state.is_processing = True
+            try:
+                st.session_state.messages.append({
+                    "role": "user",
+                    "content": clean_query,
+                })
 
-        # Append user message
-        st.session_state.messages.append({
-            "role": "user",
-            "content": clean_query,
-        })
+                lang_pref_map = {
+                    "Auto-detect": "auto",
+                    "English": "en",
+                    "हिन्दी (Hindi)": "hi",
+                    "मराठी (Marathi)": "mr",
+                    "Hinglish": "hinglish",
+                }
+                manual_lang = lang_pref_map.get(st.session_state.language_preference, "auto")
+                if manual_lang != "auto":
+                    target_lang = manual_lang
+                    st.session_state.conversation_language = manual_lang
+                else:
+                    detected = detect_language(clean_query)
+                    greeting_flag, _ = is_greeting(clean_query)
+                    words = clean_query.split()
+                    if len(words) <= 2 and greeting_flag and st.session_state.conversation_language != "en":
+                        target_lang = st.session_state.conversation_language
+                    else:
+                        target_lang = detected
+                        st.session_state.conversation_language = detected
 
-        # Resolve language target from selector or conversational context
-        lang_pref_map = {
-            "Auto-detect": "auto",
-            "English": "en",
-            "हिन्दी (Hindi)": "hi",
-            "मराठी (Marathi)": "mr",
-            "Hinglish": "hinglish",
-        }
-        manual_lang = lang_pref_map.get(st.session_state.language_preference, "auto")
-        if manual_lang != "auto":
-            target_lang = manual_lang
-            st.session_state.conversation_language = manual_lang
-        else:
-            detected = detect_language(clean_query)
-            greeting_flag, _ = is_greeting(clean_query)
-            words = clean_query.split()
-            # If short greeting or short 1-2 word query without clear script shift, preserve conversation language
-            if len(words) <= 2 and greeting_flag and st.session_state.conversation_language != "en":
-                target_lang = st.session_state.conversation_language
-            else:
-                target_lang = detected
-                st.session_state.conversation_language = detected
+                with st.chat_message("assistant"):
+                    with st.spinner("Analyzing with RBI/NPCI knowledge base & IBM Granite..."):
+                        response = orchestrator.answer(clean_query, target_lang=target_lang)
 
-        # Generate response
-        with st.chat_message("assistant"):
-            with st.spinner("Analyzing with RBI/NPCI knowledge base & IBM Granite..."):
-                response = orchestrator.answer(clean_query, target_lang=target_lang)
+                    render_source_badge(response.source, response.model_id)
+                    render_fraud_alerts(response.fraud_alerts)
+                    st.markdown(response.answer)
 
-            # Source badge
-            if response.source == "granite":
-                st.markdown('<span class="source-badge">Live IBM Granite</span>', unsafe_allow_html=True)
-            else:
-                st.markdown('<span class="source-badge">Offline Knowledge Base</span>', unsafe_allow_html=True)
+                    passage_data = [{"id": p.id, "text": p.text[:400]} for p in response.passages]
+                    if passage_data:
+                        with st.expander("📚 Knowledge Base Citations", expanded=False):
+                            for p in passage_data:
+                                st.markdown(f"**Passage:** `{p['id']}`")
+                                st.caption(p["text"])
 
-            # Fraud alerts
-            if response.fraud_alerts:
-                for alert in response.fraud_alerts:
-                    st.markdown(f'<div class="fraud-alert-box">{html.escape(alert)}</div>', unsafe_allow_html=True)
+                    if response.latency_ms:
+                        st.caption(
+                            f"⏱️ Retrieval: {response.latency_ms.get('retrieval', 0.0)}ms | "
+                            f"Provider: {response.latency_ms.get('provider', 0.0)}ms | "
+                            f"Total: {response.latency_ms.get('total', 0.0)}ms"
+                        )
 
-            # Answer
-            st.markdown(response.answer)
-
-            # Citations
-            passage_data = [{"id": p.id, "text": p.text[:400]} for p in response.passages]
-            if passage_data:
-                with st.expander("📚 Knowledge Base Citations", expanded=False):
-                    for p in passage_data:
-                        st.markdown(f"**Passage:** `{p['id']}`")
-                        st.caption(p["text"])
-
-            if response.latency_ms:
-                st.caption(
-                    f"⏱️ Retrieval: {response.latency_ms.get('retrieval', 0.0)}ms | "
-                    f"Provider: {response.latency_ms.get('provider', 0.0)}ms | "
-                    f"Total: {response.latency_ms.get('total', 0.0)}ms"
-                )
-
-        # Store in history
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": response.answer,
-            "source": response.source,
-            "fraud_alerts": response.fraud_alerts,
-            "emergency": response.emergency,
-            "passages": passage_data,
-            "latency_ms": response.latency_ms,
-        })
-
-        st.session_state.is_processing = False
-        st.rerun()
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": response.answer,
+                    "source": response.source,
+                    "model_id": response.model_id,
+                    "status": response.status,
+                    "error_category": response.error_category,
+                    "fraud_alerts": response.fraud_alerts,
+                    "emergency": response.emergency,
+                    "passages": passage_data,
+                    "latency_ms": response.latency_ms,
+                })
+            finally:
+                st.session_state.is_processing = False
+            st.rerun()
 
 
 # ---------------------------------------------------------------------------
-# TAB 2: Loan Cost Calculator
+# SCREEN 3 / TAB 2: Loan Cost Calculator
 # ---------------------------------------------------------------------------
 
 with tab_calc:
     st.markdown(
         """
         <div style="margin-bottom: 0.8rem;">
-            <h2 style="margin:0; font-size:1.4rem; font-weight:700;">Simplified Loan Cost Calculator</h2>
-            <p style="color:#64748B; font-size:0.92rem; margin:0.2rem 0 0.8rem 0;">
-                Compute the annualized cost rate of short-term lending offers to detect predatory terms.
+            <h2 style="margin:0; font-size:1.35rem; font-weight:700;">Simplified Loan Cost & APR Calculator</h2>
+            <p style="color:#64748B; font-size:0.9rem; margin:0.2rem 0 0.8rem 0;">
+                Compute the annualized borrowing cost of short-term lending offers to detect predatory terms.
             </p>
         </div>
         """,
@@ -530,7 +408,7 @@ with tab_calc:
         with st.form("loan_calculator_form"):
             st.markdown("**Loan Parameters**")
             principal = st.number_input(
-                "Loan Amount (Principal ₹)",
+                "Loan Amount Disbursed (Principal ₹)",
                 min_value=1.0,
                 max_value=100000000.0,
                 value=10000.0,
@@ -569,41 +447,53 @@ with tab_calc:
         else:
             annual_cost = calc_result["annualized_cost_pct"]
             is_predatory = calc_result["is_predatory"]
+            net_borrowing_cost = repayment - principal
 
-            st.markdown("### Calculation Result")
-            st.metric(
-                label="Annualized Borrowing Cost (Estimate)",
-                value=f"{annual_cost:,.2f}%",
-                delta=f"+{annual_cost - 36.0:.1f}% vs 36% limit" if annual_cost > 36.0 else "Within standard range",
-                delta_color="inverse" if annual_cost > 36.0 else "normal",
-            )
+            st.markdown("### Calculation Summary")
+            m_c1, m_c2 = st.columns(2)
+            with m_c1:
+                st.metric(
+                    label="Estimated Annualized Cost (APR)",
+                    value=f"{annual_cost:,.2f}%",
+                    delta=f"+{annual_cost - 36.0:.1f}% vs 36% indicator benchmark" if annual_cost > 36.0 else "Within commercial lending benchmarks",
+                    delta_color="inverse" if annual_cost > 36.0 else "normal",
+                )
+            with m_c2:
+                st.metric(
+                    label="Total Borrowing Cost",
+                    value=f"₹{net_borrowing_cost:,.2f}",
+                    delta=f"{(net_borrowing_cost/principal)*100:.1f}% total fee",
+                    delta_color="off",
+                )
 
             if is_predatory:
                 st.markdown(
                     f"""
-                    <div style="background-color:#FEF2F2; border-left:4px solid #DC2626; padding:0.9rem 1.1rem; border-radius:6px; margin:0.8rem 0;">
-                        <strong style="color:#991B1B;">⚠️ WARNING: Potential Predatory Lending Rate ({annual_cost:.1f}%)</strong>
-                        <p style="color:#7F1D1D; font-size:0.88rem; margin:0.4rem 0 0 0;">
-                            The Reserve Bank of India considers annual rates exceeding <strong>36%</strong> an indicator of exploitative and predatory lending for regulated NBFCs.
+                    <div class="as-fraud-box" style="margin-top:0.8rem;">
+                        <strong>⚠️ WARNING: Potential Predatory Lending Term ({annual_cost:.1f}% Annualized)</strong>
+                        <p style="margin:0.3rem 0 0 0; font-size:0.85rem; line-height:1.4;">
+                            Under RBI Fair Practices Code principles, annual borrowing costs exceeding <strong>36%</strong>
+                            frequently indicate predatory short-tenure lending. Many unauthorized digital lending apps disburse 7-day
+                            loans with massive hidden fees.
                         </p>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
                 st.warning(
-                    "Before accepting this loan, verify whether the lending app and NBFC partner are registered on the official RBI Sachet Portal: "
+                    "Before accepting this loan, verify whether the lending entity is registered on the official RBI Sachet Portal: "
                     "[sachet.rbi.org.in](https://sachet.rbi.org.in)."
                 )
             else:
                 st.success(
-                    f"✅ The annualized cost rate ({annual_cost:.1f}%) is within standard commercial lending benchmarks (<= 36%)."
+                    f"✅ The annualized borrowing cost ({annual_cost:.1f}%) is within standard commercial lending benchmarks (≤ 36%)."
                 )
 
             st.markdown(
                 """
-                <div style="font-size:0.82rem; color:#64748B; margin-top:1rem; border-top:1px solid #E2E8F0; padding-top:0.6rem;">
+                <div style="font-size:0.8rem; color:#64748B; margin-top:1rem; border-top:1px solid #E2E8F0; padding-top:0.6rem;">
                     <strong>Calculation formula:</strong> <code>((Repayment − Principal) / Principal) × (365 / Days) × 100</code><br>
-                    <em>Disclaimer: This calculation provides a simplified annualized estimate and does not replace the legally defined APR required in loan sanction letters under the RBI Fair Practices Code (DOR.STR.REC.68/21.04.048/2023-24). Always request a Key Fact Statement (KFS) before borrowing.</em>
+                    <em>Disclaimer: This calculation provides an annualized estimate and does not replace the legally defined APR required in loan sanction letters under the RBI Fair Practices Code (DOR.STR.REC.68/21.04.048/2023-24). Always demand a Key Fact Statement (KFS) before borrowing.</em>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -611,16 +501,16 @@ with tab_calc:
 
 
 # ---------------------------------------------------------------------------
-# TAB 3: 1930 Emergency Guide
+# SCREEN 4 / TAB 3: 1930 Emergency Guide
 # ---------------------------------------------------------------------------
 
 with tab_emergency:
     st.markdown(
         """
         <div style="margin-bottom: 0.8rem;">
-            <h2 style="margin:0; font-size:1.4rem; font-weight:700;">Immediate Financial Fraud Escalation Protocol</h2>
-            <p style="color:#64748B; font-size:0.92rem; margin:0.2rem 0 0.8rem 0;">
-                If you have been scammed or noticed unauthorized transactions, take these steps immediately. The first hour is critical.
+            <h2 style="margin:0; font-size:1.35rem; font-weight:700;">Immediate Financial Fraud Escalation Protocol</h2>
+            <p style="color:#64748B; font-size:0.9rem; margin:0.2rem 0 0.8rem 0;">
+                If you have been scammed or noticed unauthorized transactions, take these steps immediately. The golden hour is critical.
             </p>
         </div>
         """,
@@ -628,37 +518,30 @@ with tab_emergency:
     )
 
     steps = [
-        ("Step 1 — Call 1930 immediately",
-         "The **National Cybercrime Helpline (1930)** operates 24×7. Calling immediately triggers an automated fund-freeze across 400+ participating banks via the Citizen Financial Cyber Fraud Reporting and Management System (CFCFRMS).",
-         True),
-        ("Step 2 — File a complaint online at cybercrime.gov.in",
-         "Visit the official [National Cybercrime Reporting Portal](https://cybercrime.gov.in). Submit transaction IDs, SMS alerts, UPI reference numbers, and screenshots as evidence.",
-         False),
-        ("Step 3 — Block your card and UPI services immediately",
-         "Use your mobile banking app, net banking, or call your bank's toll-free emergency number to disable your UPI ID and block your debit/credit cards.",
-         False),
-        ("Step 4 — Notify your bank branch in writing within 3 working days",
-         "Under RBI's Zero-Liability Circular (DBR.No.Leg.BC.78/09.07.005/2017-18), notifying your bank within 3 working days protects you from bearing financial liability for third-party breaches.",
-         False),
-        ("Step 5 — Preserve all digital evidence",
-         "Do not delete fraudulent SMS, call recordings, WhatsApp messages, or transaction receipts. Law enforcement requires these records for criminal investigation.",
-         False),
+        ("Step 1 — Call 1930 Immediately (National Cybercrime Helpline)",
+         "The **National Cybercrime Helpline (1930)** operates 24×7. Calling immediately triggers the Citizen Financial Cyber Fraud Reporting & Management System (CFCFRMS), coordinating freeze protocols across 400+ connected banks before funds are withdrawn."),
+        ("Step 2 — File a Complaint Online at cybercrime.gov.in",
+         "Visit the official [National Cyber Crime Reporting Portal](https://cybercrime.gov.in). Submit transaction IDs, SMS alerts, UPI reference numbers (UTR), and screenshots as evidence."),
+        ("Step 3 — Block Your Cards and UPI Accounts Immediately",
+         "Use your mobile banking app, net banking, or call your bank's toll-free emergency number to disable your UPI ID and block your debit/credit cards."),
+        ("Step 4 — Notify Your Bank in Writing Within 3 Working Days",
+         "Under the RBI Zero-Liability Circular (DBR.No.Leg.BC.78/09.07.005/2017-18), notifying your bank within 3 working days of an unauthorized transaction protects your entitlement to reimbursement. Note: outcomes depend on individual bank policies and specific circumstances; obtain a formal written acknowledgement."),
+        ("Step 5 — Preserve All Digital & Transaction Evidence",
+         "Do not delete fraudulent SMS alerts, call recordings, WhatsApp messages, or payment receipts. Law enforcement and cybercrime units require these records for formal investigation."),
     ]
 
-    for title, desc, is_crit in steps:
-        border_col = "#DC2626" if is_crit else "#CBD5E1"
-        bg_col = "#FEF2F2" if is_crit else "#F8FAFC"
+    for title, desc in steps:
         st.markdown(
             f"""
-            <div style="background-color:{bg_col}; border-left:4px solid {border_col}; border-radius:6px; padding:0.9rem 1.1rem; margin-bottom:0.75rem;">
-                <h4 style="margin:0 0 0.3rem 0; font-size:1.02rem; font-weight:700;">{title}</h4>
-                <p style="margin:0; font-size:0.9rem; line-height:1.45;">{desc}</p>
+            <div class="as-step-item">
+                <div class="as-step-header">{html.escape(title)}</div>
+                <div class="as-step-body">{desc}</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-    st.markdown("### Official Directory")
+    st.markdown("### Official Redressal Directory")
     contact_data = {
         "Agency / Portal": [
             "National Cybercrime Helpline",

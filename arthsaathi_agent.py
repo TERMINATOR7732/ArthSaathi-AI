@@ -43,64 +43,27 @@ _KB_FILES = [
 ]
 
 
-_WATSONX_CONFIG_KEYS = (
-    "WATSONX_API_KEY",
-    "WATSONX_PROJECT_ID",
-    "WATSONX_URL",
-    "WATSONX_MODEL_ID",
+from core.config import (
+    DEFAULT_WATSONX_MODEL_ID,
+    DEFAULT_WATSONX_URL,
+    WATSONX_CONFIG_KEYS as _WATSONX_CONFIG_KEYS,
+    UUID_RE as _UUID_RE,
+    WatsonxConfig,
+    get_config_var,
+    get_config_var_with_source,
+    get_st_secrets_root_keys as _get_st_secrets_root_keys,
+    has_enclosing_quotes as _has_enclosing_quotes,
+    normalize_watsonx_url,
 )
-
-_UUID_RE = re.compile(
-    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+from ibm.exceptions import (
+    CATEGORY_AUTH_INVALID_CREDENTIALS,
+    CATEGORY_AUTH_NETWORK_ERROR,
+    CATEGORY_CONFIG_MALFORMED,
+    CATEGORY_WATSONX_TIMEOUT,
+    WatsonxError,
+    categorize_ibm_exception,
 )
-
-
-def _has_enclosing_quotes(val: str) -> bool:
-    """Return True if string has literal enclosing single or double quotes."""
-    if len(val) >= 2:
-        return (val[0] == '"' and val[-1] == '"') or (val[0] == "'" and val[-1] == "'")
-    return False
-
-
-def _get_st_secrets_root_keys() -> list[str]:
-    """Return names of expected watsonx keys found at the root of st.secrets."""
-    try:
-        import streamlit as st
-        if hasattr(st, "secrets") and st.secrets is not None:
-            return [k for k in _WATSONX_CONFIG_KEYS if k in st.secrets]
-    except Exception:
-        pass
-    return []
-
-
-def get_config_var_with_source(key: str, default: str = "") -> tuple[str, str]:
-    """
-    Retrieve configuration value and its source ('st.secrets', 'os.environ', or 'default').
-    Checks st.secrets first (for Streamlit Community Cloud), then os.environ, then default.
-    Preserves exact whitespace handling and empty variable semantics.
-    """
-    try:
-        import streamlit as st
-        if hasattr(st, "secrets") and st.secrets is not None and key in st.secrets:
-            val = str(st.secrets[key]).strip()
-            if val:
-                return val, "st.secrets"
-    except Exception:
-        pass
-
-    if key in os.environ:
-        return os.environ[key].strip(), "os.environ"
-
-    return default.strip(), "default"
-
-
-def get_config_var(key: str, default: str = "") -> str:
-    """
-    Retrieve configuration value from Streamlit secrets or environment variables.
-    Checks st.secrets first (for Streamlit Community Cloud), then os.getenv / .env.
-    Delegates to get_config_var_with_source for backward compatibility.
-    """
-    return get_config_var_with_source(key, default)[0]
+from ibm.watsonx_client import WatsonxClient
 
 
 # ---------------------------------------------------------------------------
@@ -124,12 +87,15 @@ class Passage:
 class OrchestratorResponse:
     """Structured response returned by ArthSaathiOrchestrator.answer()."""
     answer: str
-    source: str                          # "granite" | "offline_kb" | "not_configured"
+    source: str                          # "granite" | "offline_kb" | "not_configured" | "rule_based" | "provider_error"
     fraud_alerts: list[str] = field(default_factory=list)
     emergency: bool = False
     passages: list[Passage] = field(default_factory=list)
     provider_error: Optional[str] = None
     latency_ms: dict[str, float] = field(default_factory=dict)
+    model_id: Optional[str] = None
+    status: str = "success"
+    error_category: Optional[str] = None
 
     def to_dict(self) -> dict:
         return {
@@ -140,6 +106,9 @@ class OrchestratorResponse:
             "passages": [{"id": p.id, "text": p.text[:400]} for p in self.passages],
             "provider_error": self.provider_error,
             "latency_ms": self.latency_ms,
+            "model_id": self.model_id,
+            "status": self.status,
+            "error_category": self.error_category,
         }
 
 
@@ -505,6 +474,15 @@ class GraniteLLMAgent:
       configured=True, _ready=False  → credentials present but SDK init failed
     """
 
+    client: Optional[WatsonxClient] = None
+    configured: bool = False
+    _ready: bool = False
+    init_error: Optional[str] = None
+    error_category: Optional[str] = None
+    last_model_id: Optional[str] = None
+    last_error_category: Optional[str] = None
+    _client: Any = None
+
     _SYSTEM_PROMPT = (
         "You are ArthSaathi, a trusted AI financial literacy advisor for Indian citizens. "
         "You are grounded in RBI Master Directions, NPCI UPI guidelines, and Government "
@@ -517,11 +495,16 @@ class GraniteLLMAgent:
         "If the context does not contain a relevant answer, say so explicitly."
     )
 
-    def __init__(self) -> None:
-        self._client = None
-        self._ready = False
+    def __init__(self, config: Optional[WatsonxConfig] = None) -> None:
+        self.config = config or WatsonxConfig.from_sources()
+        self.client = None
         self.configured = False
-        self.init_error: Optional[str] = None
+        self._ready = False
+        self.init_error = None
+        self.error_category = None
+        self.last_model_id = None
+        self.last_error_category = None
+        self._client = None
 
         api_key, api_key_src = get_config_var_with_source("WATSONX_API_KEY", "")
         project_id, proj_id_src = get_config_var_with_source("WATSONX_PROJECT_ID", "")
@@ -550,26 +533,15 @@ class GraniteLLMAgent:
                 file=sys.stderr,
             )
 
-        try:
-            from ibm_watsonx_ai import Credentials
-            from ibm_watsonx_ai.foundation_models import ModelInference
+        self.client = WatsonxClient(self.config)
+        self._ready = self.client.is_ready
+        self.init_error = self.client.init_error
+        self.error_category = self.client.error_category
+        self._client = self.client._model_inference
 
-            creds = Credentials(url=url, api_key=api_key)
-            self._client = ModelInference(
-                model_id=model_id,
-                credentials=creds,
-                project_id=project_id,
-            )
-            self._ready = True
-        except Exception as exc:
-            # Store only the exception class name — never str(exc), which can
-            # contain auth headers, URLs with tokens, or other sensitive data.
-            exc_class = type(exc).__name__
-            self.init_error = exc_class
-            self._ready = False
-
-            # Categorize failure without exposing exception text
-            failure_cat = _categorize_init_error(exc)
+        if self.configured and not self._ready:
+            exc_class = self.init_error or "InitializationError"
+            failure_cat = self.error_category or _categorize_init_error(Exception(exc_class))
             root_secrets = _get_st_secrets_root_keys()
             root_keys_str = ",".join(root_secrets) if root_secrets else "none"
 
@@ -596,13 +568,22 @@ class GraniteLLMAgent:
     def generate(self, query: str, context: str, target_lang: Optional[str] = None) -> tuple[str, str]:
         """
         Returns (answer_text, source_label).
-        source_label: "granite" | "not_configured" | "provider_error"
+        source_label: "granite" | "not_configured" | "provider_error:<err>"
         """
-        if not self.configured:
+        if not getattr(self, "configured", False):
+            self.last_model_id = None
+            self.last_error_category = "config_missing"
             return self._offline_answer(context, query=query, target_lang=target_lang), "not_configured"
 
-        if not self._ready or self._client is None:
-            err = self.init_error or "SDK initialization failed"
+        ready = getattr(self, "_ready", False)
+        client_inference = getattr(self, "_client", None)
+        client_obj = getattr(self, "client", None)
+        client_is_ready = bool(client_obj and client_obj.is_ready)
+
+        if not ready or (client_inference is None and not client_is_ready):
+            err = getattr(self, "init_error", None) or "SDK initialization failed"
+            self.last_model_id = None
+            self.last_error_category = getattr(self, "error_category", None) or "initialization_error"
             return self._offline_answer(context, query=query, target_lang=target_lang), f"provider_error:{err}"
 
         if target_lang and target_lang != "auto":
@@ -651,23 +632,48 @@ class GraniteLLMAgent:
             },
             {"role": "user", "content": query},
         ]
+
+        # Ensure WatsonxClient wrapper exists
+        if not hasattr(self, "client") or self.client is None:
+            self.client = WatsonxClient(getattr(self, "config", None))
+
+        # Synchronize _client if overridden or mocked on agent
+        if self._client is not None:
+            self.client._model_inference = self._client
+            self.client._ready = True
+            self.client.configured = True
+
         try:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(
-                    self._client.chat,
-                    messages=messages,
-                    params={"max_tokens": 512, "temperature": 0.3},
-                )
-                result = future.result(timeout=50.0)
-            answer = result["choices"][0]["message"]["content"].strip()
-            return answer, "granite"
+            content, meta = self.client.chat_with_metadata(
+                messages=messages,
+                params={"max_tokens": 512, "temperature": 0.3},
+                timeout=50.0,
+            )
+            self.last_model_id = meta.get("model_id") or getattr(self.config, "model_id", "ibm/granite-4-h-small")
+            self.last_error_category = None
+            return content, "granite"
         except concurrent.futures.TimeoutError:
+            self.last_model_id = None
+            self.last_error_category = CATEGORY_WATSONX_TIMEOUT
             return (
                 self._offline_answer(context, query=query, target_lang=target_lang),
                 "provider_error:IBM watsonx.ai request timed out after 50 seconds",
             )
+        except WatsonxError as exc:
+            self.last_model_id = None
+            self.last_error_category = exc.category
+            err_msg = getattr(exc, "message", str(exc))
+            return (
+                self._offline_answer(context, query=query, target_lang=target_lang),
+                f"provider_error:{err_msg}",
+            )
         except Exception as exc:
-            return self._offline_answer(context, query=query, target_lang=target_lang), f"provider_error:{exc}"
+            self.last_model_id = None
+            self.last_error_category = _categorize_init_error(exc)
+            return (
+                self._offline_answer(context, query=query, target_lang=target_lang),
+                f"provider_error:{exc}",
+            )
 
     @staticmethod
     def _offline_answer(context: str, query: str = "", target_lang: Optional[str] = None) -> str:
@@ -789,6 +795,32 @@ class ArthSaathiOrchestrator:
             provider_error = source[len("provider_error:"):]
             source = "provider_error"
 
+        # Determine status, model_id, and error_category
+        status: str
+        model_id: Optional[str] = None
+        error_category: Optional[str] = None
+
+        if source == "granite":
+            status = "success"
+            model_id = getattr(self.llm, "last_model_id", None) or getattr(getattr(self.llm, "config", None), "model_id", "ibm/granite-4-h-small")
+            error_category = None
+        elif source == "not_configured":
+            status = "fallback"
+            model_id = None
+            error_category = getattr(self.llm, "last_error_category", None) or "config_missing"
+        elif source == "provider_error":
+            status = "fallback"
+            model_id = None
+            error_category = getattr(self.llm, "last_error_category", None) or "watsonx_service_error"
+        elif source == "rule_based":
+            status = "blocked" if is_emergency else "success"
+            model_id = None
+            error_category = None
+        else:
+            status = "fallback"
+            model_id = None
+            error_category = None
+
         total_ms = (time.perf_counter() - t0) * 1000.0
         latency_ms = {
             "retrieval": round(retrieval_ms, 1),
@@ -804,6 +836,9 @@ class ArthSaathiOrchestrator:
             passages=passages,
             provider_error=provider_error,
             latency_ms=latency_ms,
+            model_id=model_id,
+            status=status,
+            error_category=error_category,
         )
 
     @property
@@ -813,6 +848,27 @@ class ArthSaathiOrchestrator:
     @property
     def llm_ready(self) -> bool:
         return self.llm._ready
+
+    def get_diagnostics(self) -> dict[str, Any]:
+        """Return safe, leak-free system diagnostics for UI and health reporting."""
+        if hasattr(self.llm, "client") and self.llm.client:
+            diag = self.llm.client.get_safe_diagnostics()
+        else:
+            from core.config import WatsonxConfig
+            cfg = getattr(self.llm, "config", None) or WatsonxConfig.from_sources()
+            diag = cfg.get_safe_diagnostics()
+            diag.update({
+                "llm_ready": self.llm_ready,
+                "llm_init_error": self.llm_init_error,
+                "error_category": getattr(self.llm, "error_category", None),
+            })
+        diag.update({
+            "llm_configured": self.llm_configured,
+            "llm_ready": self.llm_ready,
+            "llm_init_error": self.llm_init_error,
+            "kb_passages_loaded": len(self.rag.passages),
+        })
+        return diag
 
     # NOTE: llm_init_error is intentionally set as an instance attribute in
     # __init__ (above) rather than as a @property.  This ensures the attribute

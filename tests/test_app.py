@@ -228,48 +228,48 @@ def test_chat_response_no_stack_trace(client):
 
 def test_chat_not_configured_returns_valid_response(client):
     """
-    When IBM credentials are absent (default test environment),
+    When IBM credentials are absent,
     the response must have status='not_configured' and source='not_configured',
     NOT 'granite'.
-    Skipped automatically when live credentials are configured.
+    Isolates configuration state via mock so test executes deterministically regardless of local .env.
     """
-    # In the test environment no .env with real credentials should be loaded
-    resp = client.post(
-        "/api/chat",
-        content_type="application/json",
-        data=json.dumps({"query": "What is PMJDY?"}),
-    )
-    assert resp.status_code == 200
-    data = resp.get_json()
-    if data["source"] == "granite":
-        pytest.skip("Live IBM Granite credentials are configured — not_configured path not applicable.")
-    # Since no real credentials exist, source must not be 'granite'
-    assert data["source"] != "granite", (
-        "source='granite' implies live IBM inference succeeded — "
-        "this should not happen in a test environment without credentials."
-    )
+    import app as flask_app_module
+    with mock.patch.object(flask_app_module._orchestrator.llm, "configured", False):
+        resp = client.post(
+            "/api/chat",
+            content_type="application/json",
+            data=json.dumps({"query": "What is PMJDY?"}),
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["source"] != "granite", (
+            "source='granite' implies live IBM inference succeeded — "
+            "this should not happen in a test environment without credentials."
+        )
 
 
 def test_chat_not_configured_answer_contains_offline_notice(client):
     """
     When not configured, the answer must include the offline notice text,
     not a fabricated Granite response.
+    Isolates configuration state via mock so test executes deterministically.
     """
-    resp = client.post(
-        "/api/chat",
-        content_type="application/json",
-        data=json.dumps({"query": "What is RBI zero liability rule?"}),
-    )
-    data = resp.get_json()
-    if data["source"] == "granite":
-        pytest.skip("Live IBM Granite credentials are configured — offline test not applicable.")
+    import app as flask_app_module
+    with mock.patch.object(flask_app_module._orchestrator.llm, "configured", False):
+        resp = client.post(
+            "/api/chat",
+            content_type="application/json",
+            data=json.dumps({"query": "What is RBI zero liability rule?"}),
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
 
-    # The offline answer must contain the explicit offline marker
-    answer = data.get("answer", "")
-    assert "[Offline Knowledge Base" in answer or "not configured" in answer.lower(), (
-        "Expected offline answer to contain an explicit offline notice. "
-        f"Got: {answer[:200]}"
-    )
+        # The offline answer must contain the explicit offline marker
+        answer = data.get("answer", "")
+        assert "[Offline Knowledge Base" in answer or "not configured" in answer.lower(), (
+            "Expected offline answer to contain an explicit offline notice. "
+            f"Got: {answer[:200]}"
+        )
 
 
 def test_no_fabricated_granite_response_without_credentials():
@@ -514,25 +514,28 @@ def test_response_source_is_not_configured_without_env():
     """
     Orchestrator without IBM credentials must return source != 'granite'.
     source must be 'not_configured' (credentials absent).
+    Isolates configuration state via mock so test executes deterministically.
     """
-    orchestrator = ArthSaathiOrchestrator()
-    if orchestrator.llm_configured:
-        pytest.skip("IBM credentials appear configured — skipping not_configured assertion.")
-    response = orchestrator.answer("Tell me about UPI safety")
-    assert response.source != "granite", (
-        "Expected source != 'granite' without credentials"
-    )
+    with mock.patch.dict(os.environ, {"WATSONX_API_KEY": "", "WATSONX_PROJECT_ID": ""}, clear=False):
+        orchestrator = ArthSaathiOrchestrator()
+        orchestrator.llm.configured = False
+        response = orchestrator.answer("Tell me about UPI safety")
+        assert response.source != "granite", (
+            "Expected source != 'granite' without credentials"
+        )
+        assert response.source == "not_configured"
 
 
 def test_offline_answer_has_explicit_notice():
     """GraniteLLMAgent offline answer must contain the [Offline Knowledge Base] marker."""
-    agent = GraniteLLMAgent()
-    if agent.configured:
-        pytest.skip("Credentials present — skipping offline marker test.")
-    answer, source = agent.generate("test query", "some context text here")
-    assert "[Offline Knowledge Base" in answer, (
-        "Offline answer must explicitly state it is from offline KB, not Granite."
-    )
+    with mock.patch.dict(os.environ, {"WATSONX_API_KEY": "", "WATSONX_PROJECT_ID": ""}, clear=False):
+        agent = GraniteLLMAgent()
+        agent.configured = False
+        answer, source = agent.generate("test query", "some context text here")
+        assert source == "not_configured"
+        assert "[Offline Knowledge Base" in answer, (
+            "Offline answer must explicitly state it is from offline KB, not Granite."
+        )
 
 
 # ===========================================================================
